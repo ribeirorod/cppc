@@ -1,5 +1,5 @@
 {
-  "name": "cppc-cli",
+  "name": "@ribeirorod/cppc-cli",
   "version": "0.1.1",
   "description": "Claude Profiled Provider CLI - agent-friendly provider switching for Claude Code & Agent SDK",
   "main": "dist/cli.js",

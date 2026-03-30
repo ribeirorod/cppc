@@ -5,7 +5,7 @@ Manage multiple Anthropic-compatible providers for Claude Code and the Agent SDK
 ## Install
 
 ```bash
-npm install -g cppc-cli
+npm install -g @ribeirorod/cppc-cli
 ```
 
 ## Quick Start
