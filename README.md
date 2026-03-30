@@ -1,4 +1,4 @@
-# CPPC — Claude Profiled Provider CLI
+# CPPC — Claude Code Profiled Provider CLI
 
 Manage multiple Anthropic-compatible providers for Claude Code and the Agent SDK. Switch profiles, set fallback chains, and launch profiled terminals — all project-scoped, never global.
 
