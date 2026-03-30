@@ -96,74 +96,91 @@ cppc claude -p deepseek -m plan
 cppc claude -p anthropic --resume
 ```
 
-## Fallback in Practice
+## Fallback — Keep the Engines Running
 
-### Setup
+The core idea: you run Claude on Anthropic. Quota exceeded, rate limited, or service down? Don't stop — fall through to the next provider automatically.
 
-```bash
-# Start with Anthropic as primary
-cppc init
-
-# Add fallback providers
-cppc profile add minimax --auth-token mm-xxx
-cppc profile add deepseek --auth-token sk-xxx
-
-# Define the fallback order
-cppc fallback set minimax,deepseek
+```
+anthropic (primary) → minimax → kimi
+                      ↑
+              quota exceeded? next.
 ```
 
-### Manual failover
+### 1. Set it up once
 
-When you hit a quota limit or an outage, switch to the next provider in one line:
+```bash
+# Primary — your Claude Max account
+cppc init
+
+# Add fallback providers (Anthropic-compatible APIs)
+cppc profile add minimax --auth-token mm-xxx
+cppc profile add kimi --auth-token mk-xxx
+
+# Define the fallback chain
+cppc fallback set minimax,kimi
+```
+
+Now your `.cppc.env` holds three profiles with a defined order: `anthropic → minimax → kimi`.
+
+### 2. You're working, Anthropic goes down
+
+You hit the Claude Max quota or Anthropic returns 529. One command:
 
 ```bash
 cppc fallback activate && eval $(cppc env)
 # ✓ Switched from 'anthropic' to 'minimax'
 ```
 
-Run it again to move down the chain:
+Claude Code keeps running — same commands, same workflow — just routed through MiniMax now.
+
+Still broken? Move down the chain:
 
 ```bash
 cppc fallback activate && eval $(cppc env)
-# ✓ Switched from 'minimax' to 'deepseek'
+# ✓ Switched from 'minimax' to 'kimi'
 ```
 
-### Parallel terminals for cost optimization
-
-Open two terminals side by side — expensive tasks on Anthropic, routine work on a cheaper provider:
+### 3. Anthropic is back — switch home
 
 ```bash
-# Terminal 1 — complex refactoring on Anthropic
-cppc claude -p anthropic -m autonomous
-
-# Terminal 2 — tests, docs, simple fixes on MiniMax
-cppc claude -p minimax -m autonomous
+cppc switch anthropic && eval $(cppc env)
+# ✓ Switched to 'anthropic'
 ```
 
-### Health check before switching
-
-Verify a provider is reachable before routing traffic to it:
+### 4. Check who's healthy before switching
 
 ```bash
 cppc check --all
 # ✓ anthropic: OK (120ms)
 # ✓ minimax: OK (89ms)
-# ✗ deepseek: FAIL — timeout
+# ✗ kimi: FAIL — timeout
 ```
 
-### Agent / script integration
+### 5. Parallel terminals — different providers at the same time
 
-All commands support `--json` for programmatic use:
+Run Anthropic for complex architecture work and a cheaper provider for routine tasks, side by side:
 
 ```bash
-# Check status
-cppc status --json
-# {"ok":true,"data":{"active":"anthropic","fallback":["minimax","deepseek"],"profiles":2}}
+# Terminal 1 — heavy lifting
+cppc claude -p anthropic -m autonomous
 
-# Failover and reload env in a script
+# Terminal 2 — tests, docs, simple fixes
+cppc claude -p minimax -m autonomous
+```
+
+### 6. Script / agent integration
+
+All commands support `--json` so agents and scripts can drive failover programmatically:
+
+```bash
+# Check current state
+cppc status --json
+# {"ok":true,"data":{"active":"anthropic","fallback":["minimax","kimi"],"profiles":3}}
+
+# Automated failover in a wrapper script
 cppc fallback activate --json && eval $(cppc env)
 
-# Health check from CI or a monitoring script
+# Health monitoring
 cppc check --all --json
 ```
 
