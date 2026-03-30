@@ -1,5 +1,5 @@
 {
-  "name": "cppc",
+  "name": "cppc-cli",
   "version": "0.1.0",
   "description": "Claude Profiled Provider CLI - agent-friendly provider switching for Claude Code & Agent SDK",
   "main": "dist/cli.js",
@@ -21,7 +21,10 @@
     "start": "node dist/cli.js",
     "test": "node --import tsx --test tests/**/*.test.ts",
     "clean": "rm -rf dist",
-    "prepublishOnly": "npm run clean && npm run build"
+    "prepublishOnly": "npm run clean && npm run build",
+    "release:patch": "npm version patch && git push origin main --tags",
+    "release:minor": "npm version minor && git push origin main --tags",
+    "release:major": "npm version major && git push origin main --tags"
   },
   "keywords": [
     "cli",

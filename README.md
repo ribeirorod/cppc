@@ -5,7 +5,7 @@ Manage multiple Anthropic-compatible providers for Claude Code and the Agent SDK
 ## Install
 
 ```bash
-npm install -g cppc
+npm install -g cppc-cli
 ```
 
 ## Quick Start
@@ -182,6 +182,84 @@ cppc fallback activate --json && eval $(cppc env)
 
 # Health monitoring
 cppc check --all --json
+```
+
+## Agent SDK Integration
+
+CPPC works with the [Claude Agent SDK](https://github.com/anthropics/claude-agent-sdk-typescript) — pass profile env vars via `options.env` to route agent sessions through any provider.
+
+### TypeScript
+
+```typescript
+import { query } from '@anthropic-ai/claude-agent-sdk';
+import { execSync } from 'child_process';
+
+// Read the active profile's env vars from cppc
+const cppcEnv = JSON.parse(execSync('cppc env --json').toString()).data;
+
+for await (const message of query({
+  prompt: 'Analyze the repo for bugs.',
+  options: {
+    env: cppcEnv,  // ANTHROPIC_BASE_URL, ANTHROPIC_AUTH_TOKEN, ANTHROPIC_MODEL
+    allowedTools: ['Read', 'Glob', 'Grep'],
+  }
+})) {
+  if (message.type === 'assistant') {
+    console.log(message.message.content);
+  }
+}
+```
+
+### Python
+
+```python
+from claude_agent_sdk import ClaudeSDKClient, ClaudeAgentOptions
+import subprocess, json
+
+# Read the active profile's env vars from cppc
+cppc_env = json.loads(
+    subprocess.check_output(["cppc", "env", "--json"])
+)["data"]
+
+options = ClaudeAgentOptions(
+    env=cppc_env,  # ANTHROPIC_BASE_URL, ANTHROPIC_AUTH_TOKEN, ANTHROPIC_MODEL
+    allowed_tools=["Read", "Write", "Edit"],
+    permission_mode="bypassPermissions"
+)
+
+async with ClaudeSDKClient(options=options) as client:
+    async for message in client.query("Review this code."):
+        print(message)
+```
+
+### How it works
+
+| Auth method | What CPPC sets | What happens |
+|-------------|---------------|--------------|
+| **Claude Max (OAuth)** | Nothing — env vars are empty | Agent SDK uses your `claude login` session automatically |
+| **API key provider** | `ANTHROPIC_BASE_URL`, `ANTHROPIC_AUTH_TOKEN`, `ANTHROPIC_MODEL` | Agent SDK routes to the specified provider |
+
+For Claude Max users: just run `claude login` once. CPPC's `anthropic` profile leaves env vars empty so the SDK falls through to your OAuth session.
+
+### Failover in agent scripts
+
+```typescript
+import { execSync } from 'child_process';
+
+function getCppcEnv(profile?: string): Record<string, string> {
+  const flag = profile ? ` --profile ${profile}` : '';
+  return JSON.parse(execSync(`cppc env --json${flag}`).toString()).data;
+}
+
+// Try primary, fall back on error
+try {
+  await runAgent(getCppcEnv());
+} catch (err) {
+  if (isQuotaOrRateError(err)) {
+    execSync('cppc fallback activate');
+    await runAgent(getCppcEnv());  // now on the next provider
+  }
+}
 ```
 
 ## Config
