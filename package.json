@@ -7,8 +7,14 @@
     "cppc": "dist/cli.js"
   },
   "type": "module",
-  "files": ["dist", "README.md", "LICENSE"],
-  "engines": { "node": ">=18.0.0" },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=18.0.0"
+  },
   "scripts": {
     "build": "tsc",
     "dev": "tsx watch src/cli.ts",
@@ -17,16 +23,26 @@
     "clean": "rm -rf dist",
     "prepublishOnly": "npm run clean && npm run build"
   },
-  "keywords": ["cli", "claude-code", "claude", "provider", "agent-sdk", "fallback", "ai"],
+  "keywords": [
+    "cli",
+    "claude-code",
+    "claude",
+    "provider",
+    "agent-sdk",
+    "fallback",
+    "ai"
+  ],
   "license": "MIT",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/ribeirorod/cppc.git"
   },
   "dependencies": {
-    "commander": "^13.0.0"
+    "commander": "^13.0.0",
+    "inquirer": "^12.11.1"
   },
   "devDependencies": {
+    "@types/inquirer": "^9.0.9",
     "@types/node": "^22.0.0",
     "tsx": "^4.20.6",
     "typescript": "^5.7.0"

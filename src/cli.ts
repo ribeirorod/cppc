@@ -10,6 +10,7 @@ import { registerFallback } from './commands/fallback.js';
 import { registerCheck } from './commands/check.js';
 import { registerReset } from './commands/reset.js';
 import { registerClaude } from './commands/claude.js';
+import { registerWizard } from './commands/wizard.js';
 import { getAllTemplates } from './lib/providers.js';
 
 const program = new Command();
@@ -34,6 +35,7 @@ registerFallback(program);
 registerCheck(program);
 registerReset(program);
 registerClaude(program);
+registerWizard(program);
 
 // Provider list (convenience, no config needed)
 program
