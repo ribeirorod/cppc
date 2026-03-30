@@ -132,10 +132,6 @@ CPPC__minimax__MODEL=MiniMax-M2.7
 
 Profiles are project-scoped. CPPC never touches `~/.claude/settings.json` or any global config.
 
-## Acknowledgements
-
-Inspired by [CCS](https://github.com/kaitranntt/ccs) for the provider registry concept and Anthropic-compatible provider discovery.
-
 ## License
 
 MIT
