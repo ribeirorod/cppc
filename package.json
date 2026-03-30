@@ -1,0 +1,34 @@
+{
+  "name": "cppc",
+  "version": "0.1.0",
+  "description": "Claude Profiled Provider CLI - agent-friendly provider switching for Claude Code & Agent SDK",
+  "main": "dist/cli.js",
+  "bin": {
+    "cppc": "dist/cli.js"
+  },
+  "type": "module",
+  "files": ["dist", "README.md", "LICENSE"],
+  "engines": { "node": ">=18.0.0" },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx watch src/cli.ts",
+    "start": "node dist/cli.js",
+    "test": "node --import tsx --test tests/**/*.test.ts",
+    "clean": "rm -rf dist",
+    "prepublishOnly": "npm run clean && npm run build"
+  },
+  "keywords": ["cli", "claude-code", "claude", "provider", "agent-sdk", "fallback", "ai"],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ribeirorod/cppc.git"
+  },
+  "dependencies": {
+    "commander": "^13.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "tsx": "^4.20.6",
+    "typescript": "^5.7.0"
+  }
+}
