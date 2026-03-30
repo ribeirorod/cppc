@@ -1,0 +1,5 @@
+node_modules/
+dist/
+.cppc.env
+*.tgz
+.DS_Store
