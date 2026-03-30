@@ -16,8 +16,10 @@ export function registerInit(program: Command): void {
     .option('--force', 'Overwrite existing .cppc.env')
     .addHelpText('after', `
 Examples:
-  cppc init --provider anthropic --auth-token sk-ant-xxx
-  cppc init --provider minimax --auth-token mm-xxx --model MiniMax-M2.7
+  cppc init                                        # Anthropic OAuth (Claude Max)
+  cppc init --provider anthropic                   # Same — uses claude login
+  cppc init --provider anthropic-api --auth-token sk-ant-xxx  # Anthropic API key
+  cppc init --provider minimax --auth-token mm-xxx
   cppc init --provider deepseek --auth-token sk-xxx
   cppc init --base-url https://custom.api/v1 --auth-token xxx --model my-model
     `)
@@ -30,18 +32,19 @@ Examples:
 
       const providerId = opts.provider || 'anthropic';
       const template = getTemplate(providerId);
+      const isOAuth = template?.oauth ?? false;
 
-      const baseUrl = opts.baseUrl || template?.baseUrl;
-      const model = opts.model || template?.defaultModel;
+      const baseUrl = opts.baseUrl || template?.baseUrl || '';
+      const model = opts.model || template?.defaultModel || '';
       const authToken = opts.authToken || '';
 
-      if (!baseUrl) {
-        err('--base-url required for unknown provider. Known providers: anthropic, minimax, deepseek, kimi, qwen, zhipu, openrouter, ollama');
+      if (!isOAuth && !baseUrl) {
+        err('--base-url required for unknown provider. Known providers: anthropic, anthropic-api, minimax, deepseek, kimi, qwen, zhipu, openrouter, ollama');
         return;
       }
 
-      if (!authToken) {
-        err('--auth-token required');
+      if (!isOAuth && !authToken) {
+        err('--auth-token required (use --provider anthropic for OAuth/Claude Max)');
         return;
       }
 

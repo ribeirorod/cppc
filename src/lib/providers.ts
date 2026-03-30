@@ -3,7 +3,15 @@ import type { ProviderTemplate } from '../types.js';
 const templates: ProviderTemplate[] = [
   {
     id: 'anthropic',
-    name: 'Anthropic',
+    name: 'Anthropic (Claude Max / OAuth)',
+    baseUrl: '',
+    defaultModel: '',
+    validateUrl: '',
+    oauth: true,
+  },
+  {
+    id: 'anthropic-api',
+    name: 'Anthropic (API key)',
     baseUrl: 'https://api.anthropic.com',
     defaultModel: 'claude-sonnet-4-20250514',
     validateUrl: 'https://api.anthropic.com/v1/models',

@@ -66,9 +66,9 @@ Examples:
 
       const lines = [
         `Name: ${p.name}`,
-        `Base URL: ${p.baseUrl}`,
-        `Model: ${p.model}`,
-        `Auth Token: ${token}`,
+        `Base URL: ${p.baseUrl || '(native — OAuth)'}`,
+        `Model: ${p.model || '(Claude default)'}`,
+        `Auth Token: ${p.authToken ? token : '(OAuth — claude login)'}`,
       ];
       if (p.smallFastModel) lines.push(`Small/Fast Model: ${p.smallFastModel}`);
       if (p.subagentModel) lines.push(`Subagent Model: ${p.subagentModel}`);
@@ -118,18 +118,19 @@ Known providers (auto-fill base URL & model): ${getAllTemplates().map(t => t.id)
       }
 
       const template = getTemplate(name);
+      const isOAuth = template?.oauth ?? false;
       if (template) {
-        baseUrl = baseUrl || template.baseUrl;
-        model = model || template.defaultModel;
+        baseUrl = baseUrl || template.baseUrl || '';
+        model = model || template.defaultModel || '';
       }
 
-      if (!baseUrl) { err('--base-url required (or use a known provider name)'); return; }
-      if (!authToken) { err('--auth-token required'); return; }
+      if (!isOAuth && !baseUrl) { err('--base-url required (or use a known provider name)'); return; }
+      if (!isOAuth && !authToken) { err('--auth-token required (use "anthropic" for OAuth/Claude Max)'); return; }
 
       const newProfile: Profile = {
         name,
-        baseUrl,
-        authToken,
+        baseUrl: baseUrl || '',
+        authToken: authToken || '',
         model: model || '',
         smallFastModel: opts.smallFastModel || template?.smallFastModel,
         subagentModel: opts.subagentModel,

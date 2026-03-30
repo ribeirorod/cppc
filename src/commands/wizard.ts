@@ -22,25 +22,28 @@ ${CYAN}${BOLD}  ╔════════════════════�
 `);
 }
 
-async function selectProvider(): Promise<{ id: string; name: string; baseUrl: string; model: string }> {
+async function selectProvider(): Promise<{ id: string; name: string; baseUrl: string; model: string; oauth: boolean }> {
   const templates = getAllTemplates();
 
   const providerId = await select({
     message: 'Select a provider',
     choices: templates.map(t => ({
-      name: `${t.name.padEnd(20)} ${DIM}${t.baseUrl}${RESET}`,
+      name: `${t.name.padEnd(30)} ${DIM}${t.oauth ? '(OAuth — claude login)' : t.baseUrl}${RESET}`,
       value: t.id,
     })),
   });
 
   const template = getTemplate(providerId)!;
 
-  const model = await input({
-    message: 'Model',
-    default: template.defaultModel,
-  });
+  let model = template.defaultModel;
+  if (!template.oauth) {
+    model = await input({
+      message: 'Model',
+      default: template.defaultModel,
+    });
+  }
 
-  return { id: providerId, name: template.name, baseUrl: template.baseUrl, model };
+  return { id: providerId, name: template.name, baseUrl: template.baseUrl, model, oauth: !!template.oauth };
 }
 
 async function askAuthToken(providerName: string): Promise<string> {
@@ -56,7 +59,14 @@ async function firstRunSetup(): Promise<void> {
   console.log(`${YELLOW}  No .cppc.env found. Let's set up your first provider.${RESET}\n`);
 
   const provider = await selectProvider();
-  const authToken = await askAuthToken(provider.name);
+
+  let authToken = '';
+  if (provider.oauth) {
+    console.log(`\n${CYAN}  OAuth provider — no API key needed.${RESET}`);
+    console.log(`${DIM}  Make sure you're logged in: ${BOLD}claude login${RESET}\n`);
+  } else {
+    authToken = await askAuthToken(provider.name);
+  }
 
   const profile: Profile = {
     name: provider.id,
@@ -78,7 +88,7 @@ async function firstRunSetup(): Promise<void> {
   };
 
   saveConfig(config);
-  console.log(`\n${GREEN}  ✓ Profile '${provider.id}' created and set as active.${RESET}`);
+  console.log(`${GREEN}  ✓ Profile '${provider.id}' created and set as active.${RESET}`);
   console.log(`${DIM}  Config saved to ${resolveConfigPath()}${RESET}\n`);
 
   // Offer to add more
@@ -103,7 +113,13 @@ async function addProfileFlow(config: Config): Promise<void> {
     if (config.profiles.has(provider.id)) {
       console.log(`${YELLOW}  Profile '${provider.id}' already exists, skipping.${RESET}`);
     } else {
-      const authToken = await askAuthToken(provider.name);
+      let authToken = '';
+      if (provider.oauth) {
+        console.log(`\n${CYAN}  OAuth provider — no API key needed.${RESET}`);
+        console.log(`${DIM}  Make sure you're logged in: ${BOLD}claude login${RESET}\n`);
+      } else {
+        authToken = await askAuthToken(provider.name);
+      }
 
       const profile: Profile = {
         name: provider.id,

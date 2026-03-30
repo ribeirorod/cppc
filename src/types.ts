@@ -25,6 +25,8 @@ export interface ProviderTemplate {
   defaultModel: string;
   smallFastModel?: string;
   validateUrl: string;
+  /** If true, uses OAuth (claude login) — no API key needed */
+  oauth?: boolean;
 }
 
 /** Result of a health check */

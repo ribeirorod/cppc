@@ -5,9 +5,10 @@ import { getTemplate, getAllTemplates, getTemplateOrThrow } from '../src/lib/pro
 describe('provider registry', () => {
   it('returns all templates', () => {
     const all = getAllTemplates();
-    assert.ok(all.length >= 6);
+    assert.ok(all.length >= 7);
     const ids = all.map(t => t.id);
     assert.ok(ids.includes('anthropic'));
+    assert.ok(ids.includes('anthropic-api'));
     assert.ok(ids.includes('minimax'));
     assert.ok(ids.includes('deepseek'));
     assert.ok(ids.includes('kimi'));
