@@ -9,6 +9,7 @@ import { registerSwitch } from './commands/switch.js';
 import { registerFallback } from './commands/fallback.js';
 import { registerCheck } from './commands/check.js';
 import { registerReset } from './commands/reset.js';
+import { registerClaude } from './commands/claude.js';
 import { getAllTemplates } from './lib/providers.js';
 
 const program = new Command();
@@ -32,6 +33,7 @@ registerSwitch(program);
 registerFallback(program);
 registerCheck(program);
 registerReset(program);
+registerClaude(program);
 
 // Provider list (convenience, no config needed)
 program
@@ -69,6 +71,11 @@ Agent integration:
   eval $(cppc env)                         # Load active profile
   eval $(cppc env --profile minimax)       # Load specific profile
   cppc fallback activate && eval $(cppc env)  # Activate next fallback
+
+Quick launch:
+  cppc claude -p minimax -m autonomous     # Minimax terminal, no prompts
+  cppc claude -p deepseek -m plan          # DeepSeek in plan mode
+  cppc claude -p anthropic --resume        # Resume on Anthropic
 `);
 
 program.parseAsync(process.argv).catch((error) => {
