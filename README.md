@@ -96,20 +96,74 @@ cppc claude -p deepseek -m plan
 cppc claude -p anthropic --resume
 ```
 
-## Agent Integration
+## Fallback in Practice
+
+### Setup
 
 ```bash
-# Load active profile into shell
-eval $(cppc env)
+# Start with Anthropic as primary
+cppc init
 
-# Load a specific profile
-eval $(cppc env --profile minimax)
+# Add fallback providers
+cppc profile add minimax --auth-token mm-xxx
+cppc profile add deepseek --auth-token sk-xxx
 
-# On quota error, failover to next provider
-cppc fallback activate --json
-eval $(cppc env)
+# Define the fallback order
+cppc fallback set minimax,deepseek
+```
 
-# Check provider health programmatically
+### Manual failover
+
+When you hit a quota limit or an outage, switch to the next provider in one line:
+
+```bash
+cppc fallback activate && eval $(cppc env)
+# ✓ Switched from 'anthropic' to 'minimax'
+```
+
+Run it again to move down the chain:
+
+```bash
+cppc fallback activate && eval $(cppc env)
+# ✓ Switched from 'minimax' to 'deepseek'
+```
+
+### Parallel terminals for cost optimization
+
+Open two terminals side by side — expensive tasks on Anthropic, routine work on a cheaper provider:
+
+```bash
+# Terminal 1 — complex refactoring on Anthropic
+cppc claude -p anthropic -m autonomous
+
+# Terminal 2 — tests, docs, simple fixes on MiniMax
+cppc claude -p minimax -m autonomous
+```
+
+### Health check before switching
+
+Verify a provider is reachable before routing traffic to it:
+
+```bash
+cppc check --all
+# ✓ anthropic: OK (120ms)
+# ✓ minimax: OK (89ms)
+# ✗ deepseek: FAIL — timeout
+```
+
+### Agent / script integration
+
+All commands support `--json` for programmatic use:
+
+```bash
+# Check status
+cppc status --json
+# {"ok":true,"data":{"active":"anthropic","fallback":["minimax","deepseek"],"profiles":2}}
+
+# Failover and reload env in a script
+cppc fallback activate --json && eval $(cppc env)
+
+# Health check from CI or a monitoring script
 cppc check --all --json
 ```
 
