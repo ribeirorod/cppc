@@ -13,7 +13,7 @@ const templates: ProviderTemplate[] = [
     id: 'anthropic-api',
     name: 'Anthropic (API key)',
     baseUrl: 'https://api.anthropic.com',
-    defaultModel: 'claude-sonnet-4-20250514',
+    defaultModel: 'claude-sonnet-5',
     validateUrl: 'https://api.anthropic.com/v1/models',
   },
   {
@@ -57,8 +57,12 @@ const templates: ProviderTemplate[] = [
   {
     id: 'openrouter',
     name: 'OpenRouter',
-    baseUrl: 'https://openrouter.ai/api/v1',
-    defaultModel: 'anthropic/claude-sonnet-4',
+    // Anthropic-compatible surface — Claude Code appends /v1/messages itself, so no /v1 here.
+    // Non-Anthropic models depend on OpenRouter's tool-call translation and may not work
+    // reliably with Claude Code; use `cppc models --tools-only` to find capable ones.
+    baseUrl: 'https://openrouter.ai/api',
+    defaultModel: 'anthropic/claude-sonnet-5',
+    smallFastModel: 'anthropic/claude-haiku-4.5',
     validateUrl: 'https://openrouter.ai/api/v1/models',
   },
   {

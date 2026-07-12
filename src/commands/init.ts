@@ -53,6 +53,7 @@ Examples:
         baseUrl,
         authToken,
         model: model || '',
+        smallFastModel: template?.smallFastModel,
       };
 
       const config: Config = {

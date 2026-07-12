@@ -11,6 +11,7 @@ import { registerFallback } from './commands/fallback.js';
 import { registerCheck } from './commands/check.js';
 import { registerReset } from './commands/reset.js';
 import { registerClaude } from './commands/claude.js';
+import { registerModels } from './commands/models.js';
 import { registerWizard } from './commands/wizard.js';
 import { getAllTemplates } from './lib/providers.js';
 
@@ -38,6 +39,7 @@ registerFallback(program);
 registerCheck(program);
 registerReset(program);
 registerClaude(program);
+registerModels(program);
 registerWizard(program);
 
 // Provider list (convenience, no config needed)
@@ -81,6 +83,10 @@ Quick launch:
   cppc claude -p minimax -m autonomous     # Minimax terminal, no prompts
   cppc claude -p deepseek -m plan          # DeepSeek in plan mode
   cppc claude -p anthropic --resume        # Resume on Anthropic
+
+One provider, many models (OpenRouter):
+  cppc models --search deepseek            # Browse the catalog
+  cppc claude -p openrouter --model deepseek/deepseek-chat
 `);
 
 program.parseAsync(process.argv).catch((error) => {

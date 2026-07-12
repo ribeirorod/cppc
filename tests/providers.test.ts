@@ -27,4 +27,13 @@ describe('provider registry', () => {
   it('returns undefined for unknown id', () => {
     assert.equal(getTemplate('nope'), undefined);
   });
+
+  it('points openrouter at the Anthropic-compatible surface', () => {
+    const or = getTemplate('openrouter');
+    assert.ok(or);
+    // Claude Code appends /v1/messages itself — a trailing /v1 here breaks it
+    assert.equal(or.baseUrl, 'https://openrouter.ai/api');
+    assert.equal(or.validateUrl, 'https://openrouter.ai/api/v1/models');
+    assert.match(or.defaultModel, /^anthropic\//);
+  });
 });

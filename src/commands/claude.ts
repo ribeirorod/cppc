@@ -23,6 +23,7 @@ Examples:
   cppc claude -p anthropic --resume            # Resume last conversation on Anthropic
   cppc claude -p minimax --print "explain X"   # Non-interactive with minimax
   cppc claude -p minimax -- --verbose          # Pass extra flags to claude
+  cppc claude -p openrouter --model deepseek/deepseek-chat   # Any OpenRouter model
 
 Modes:
   default      Normal interactive mode

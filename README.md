@@ -48,14 +48,33 @@ Claude Code and the Agent SDK respect `ANTHROPIC_BASE_URL`, `ANTHROPIC_AUTH_TOKE
 | ID | Provider | Default Model |
 |----|----------|---------------|
 | `anthropic` | Anthropic (Claude Max / OAuth) | *(Claude default)* |
-| `anthropic-api` | Anthropic (API key) | claude-sonnet-4-20250514 |
+| `anthropic-api` | Anthropic (API key) | claude-sonnet-5 |
 | `minimax` | MiniMax | MiniMax-M2.7 |
 | `deepseek` | DeepSeek | deepseek-reasoner |
 | `kimi` | Kimi / Moonshot | K2.5 |
 | `qwen` | Qwen / DashScope | qwen3.5-plus |
 | `zhipu` | Z.AI / GLM | GLM-5.1 |
-| `openrouter` | OpenRouter | anthropic/claude-sonnet-4 |
+| `openrouter` | OpenRouter | anthropic/claude-sonnet-5 |
 | `ollama` | Ollama (local) | llama3 |
+
+Default models are just profile seeds — each profile stores its own `MODEL` in `.cppc.env`, so you can pin any model without waiting for a cppc release, and override it per-invocation with `--model`.
+
+### OpenRouter: one key, many models
+
+The `openrouter` template targets OpenRouter's Anthropic-compatible endpoint (`https://openrouter.ai/api` — Claude Code appends `/v1/messages` itself), giving one profile access to the whole catalog:
+
+```bash
+cppc profile add openrouter --auth-token sk-or-v1-...
+cppc models --search deepseek              # browse the catalog
+cppc claude -p openrouter --model deepseek/deepseek-chat
+eval $(cppc env --profile openrouter --model qwen/qwen3-coder)
+```
+
+Claude Code needs models that support tool use — `cppc models` marks them with ✓ (`--tools-only` to hide the rest). Non-Anthropic models rely on OpenRouter's tool-call translation and aren't guaranteed to behave perfectly.
+
+> **Upgrading?** If you created an `openrouter` profile before this fix, its base URL was `https://openrouter.ai/api/v1` (the OpenAI-compatible surface, which Claude Code can't use). Re-add the profile or edit `CPPC__openrouter__BASE_URL` in `.cppc.env` to `https://openrouter.ai/api`.
+
+Your Anthropic subscription keeps working as before: the `anthropic` (OAuth) profile exports nothing and never strips your `claude login` credentials — only token-based profiles clear a stale `ANTHROPIC_API_KEY` so it can't hijack their routing.
 
 ## Commands
 
@@ -75,6 +94,7 @@ Claude Code and the Agent SDK respect `ANTHROPIC_BASE_URL`, `ANTHROPIC_AUTH_TOKE
 | `cppc fallback reset` | Clear the fallback chain |
 | `cppc check [profile]` | Health-check a provider endpoint (`--all` for all) |
 | `cppc claude` | Launch a Claude terminal with profile env vars injected |
+| `cppc models` | List models available through an OpenRouter profile |
 | `cppc providers` | List built-in provider templates |
 | `cppc reset` | Remove `.cppc.env` |
 
