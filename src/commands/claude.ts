@@ -1,6 +1,6 @@
 import type { Command } from 'commander';
 import { loadConfig } from '../lib/config.js';
-import { profileToJson } from '../lib/env-mapper.js';
+import { getHarness } from '../lib/harnesses.js';
 import { launchClaude, modeArgs } from '../lib/launch.js';
 import { out, err } from '../lib/output.js';
 
@@ -44,8 +44,6 @@ Modes:
         return;
       }
 
-      const extraEnv: Record<string, string> = opts.model ? { ANTHROPIC_MODEL: opts.model } : {};
-
       const claudeArgs = [
         ...modeArgs(opts.mode),
         ...(opts.print ? ['--print'] : []),
@@ -56,10 +54,10 @@ Modes:
       out(`Launching claude with profile '${profileName}'${opts.mode === 'autonomous' ? ' (autonomous)' : ''}...`, {
         profile: profileName,
         mode: opts.mode || 'default',
-        env_overrides: Object.keys({ ...profileToJson(profile), ...extraEnv }),
+        env_overrides: Object.keys(getHarness('claude')!.buildEnv(profile, opts.model)),
       });
 
-      const child = launchClaude(profile, claudeArgs, extraEnv);
+      const child = launchClaude(profile, claudeArgs, opts.model);
       child.on('error', (e) => {
         err(`Failed to launch claude: ${e.message}. Is Claude Code installed?`);
       });

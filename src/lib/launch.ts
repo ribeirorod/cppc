@@ -1,31 +1,33 @@
 import { spawn, type ChildProcess } from 'node:child_process';
 import type { Profile } from '../types.js';
-import { profileToJson } from './env-mapper.js';
+import type { Harness } from './harnesses.js';
+import { getHarness } from './harnesses.js';
 
-/** Map a cppc permission mode to claude CLI flags */
+/** Legacy claude-mode mapping, kept for callers that don't go through a harness */
 export function modeArgs(mode?: string): string[] {
-  if (mode === 'autonomous') return ['--dangerously-skip-permissions'];
-  if (mode === 'plan') return ['--plan'];
-  return [];
+  return getHarness('claude')!.modeArgs(mode);
 }
 
-/** Build the spawn env for a profile. Token-based profiles drop any inherited
- * ANTHROPIC_API_KEY — Claude Code prefers it over ANTHROPIC_AUTH_TOKEN, so a stale
- * key from `claude login` would silently hijack the routing. OAuth profiles (no
- * authToken) inherit the environment untouched so subscriptions work normally. */
-export function launchEnv(profile: Profile, extraEnv: Record<string, string> = {}): NodeJS.ProcessEnv {
-  const env: NodeJS.ProcessEnv = { ...process.env, ...profileToJson(profile), ...extraEnv };
-  if (profile.authToken) delete env.ANTHROPIC_API_KEY;
+/** Build the spawn env for a harness+profile: inherited env, minus the harness's
+ * conflict guards, plus the profile mapping and any explicit extras. */
+export function launchEnv(harness: Harness, profile: Profile, model?: string, extraEnv: Record<string, string> = {}): NodeJS.ProcessEnv {
+  const env: NodeJS.ProcessEnv = { ...process.env, ...harness.buildEnv(profile, model), ...extraEnv };
+  for (const key of harness.stripEnv(profile)) delete env[key];
   return env;
 }
 
-/** Spawn claude with the profile's env applied, inheriting stdio for full interactivity */
-export function launchClaude(profile: Profile, args: string[], extraEnv: Record<string, string> = {}): ChildProcess {
-  const child = spawn('claude', args, {
-    env: launchEnv(profile, extraEnv),
+/** Spawn a harness with the profile's env applied, inheriting stdio for full interactivity */
+export function launchHarness(harness: Harness, profile: Profile, args: string[], model?: string, extraEnv: Record<string, string> = {}): ChildProcess {
+  const child = spawn(harness.bin, args, {
+    env: launchEnv(harness, profile, model, extraEnv),
     stdio: 'inherit',
     shell: true,
   });
   child.on('close', (code) => { process.exitCode = code ?? 0; });
   return child;
+}
+
+/** Spawn claude with the profile's env applied */
+export function launchClaude(profile: Profile, args: string[], model?: string): ChildProcess {
+  return launchHarness(getHarness('claude')!, profile, args, model);
 }
