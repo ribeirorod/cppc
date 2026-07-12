@@ -49,6 +49,7 @@ export function parseConfig(content: string): Config {
       subagentModel: data.SUBAGENT_MODEL,
       timeoutMs: data.TIMEOUT_MS,
       disableTraffic: data.DISABLE_TRAFFIC,
+      wireApi: data.WIRE_API,
     });
   }
 
@@ -76,6 +77,7 @@ export function serializeConfig(config: Config): string {
     if (profile.subagentModel) lines.push(`CPPC__${name}__SUBAGENT_MODEL=${profile.subagentModel}`);
     if (profile.timeoutMs) lines.push(`CPPC__${name}__TIMEOUT_MS=${profile.timeoutMs}`);
     if (profile.disableTraffic) lines.push(`CPPC__${name}__DISABLE_TRAFFIC=${profile.disableTraffic}`);
+    if (profile.wireApi) lines.push(`CPPC__${name}__WIRE_API=${profile.wireApi}`);
   }
 
   lines.push('');

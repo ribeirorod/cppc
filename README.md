@@ -76,6 +76,28 @@ Claude Code needs models that support tool use — `cppc models` marks them with
 
 Your Anthropic subscription keeps working as before: the `anthropic` (OAuth) profile exports nothing and never strips your `claude login` credentials — only token-based profiles clear a stale `ANTHROPIC_API_KEY` so it can't hijack their routing.
 
+## Harnesses: one profile, any agent CLI
+
+cppc profiles aren't just for Claude Code — the same profile can launch other coding-agent harnesses:
+
+```bash
+cppc claude   -p minimax                  # Claude Code (as always)
+cppc opencode -p minimax -m plan          # OpenCode, native plan mode
+cppc pi       -p deepseek                 # pi (pi.dev)
+cppc codex    -p openrouter -m autonomous # OpenAI Codex CLI
+```
+
+All harness commands share the same flags: `-p/--profile`, `-m/--mode` (`default | autonomous | plan`), `--model`, and `--` passthrough. No harness config files are ever written — cppc wires profiles in per-launch (env vars for Claude Code and pi, inline `OPENCODE_CONFIG_CONTENT` for OpenCode, `-c` overrides for Codex).
+
+| Harness | Command | Profile compatibility | Mode notes |
+|---------|---------|----------------------|------------|
+| Claude Code | `cppc claude` | All profiles (Anthropic wire) | Full: default / autonomous / plan |
+| OpenCode | `cppc opencode` | All profiles (Anthropic + OpenAI wire via `wireApi`) | Native plan mode (`--agent plan`) |
+| pi | `cppc pi` | anthropic-api, minimax, deepseek, kimi, zhipu, openrouter (built-in providers) | Always autonomous — no plan mode |
+| Codex | `cppc codex` | openrouter only (Codex speaks only the OpenAI Responses API) | plan ≈ read-only sandbox |
+
+Profiles carry an optional `WIRE_API` field in `.cppc.env` (`anthropic` default, `openai` for e.g. Ollama) so harnesses that support both wire protocols pick the right one. Harnesses that can't work with a profile refuse with a clear error instead of launching something broken.
+
 ## Commands
 
 | Command | Description |
@@ -94,6 +116,7 @@ Your Anthropic subscription keeps working as before: the `anthropic` (OAuth) pro
 | `cppc fallback reset` | Clear the fallback chain |
 | `cppc check [profile]` | Health-check a provider endpoint (`--all` for all) |
 | `cppc claude` | Launch a Claude terminal with profile env vars injected |
+| `cppc codex` / `cppc pi` / `cppc opencode` | Launch other agent harnesses with a profile applied |
 | `cppc models` | List models available through an OpenRouter profile |
 | `cppc providers` | List built-in provider templates |
 | `cppc reset` | Remove `.cppc.env` |

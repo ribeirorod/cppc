@@ -75,6 +75,7 @@ async function buildProfile(template: ProviderTemplate, model: string): Promise<
 
   const profile: Profile = { name: template.id, baseUrl: template.baseUrl, authToken, model };
   if (template.smallFastModel) profile.smallFastModel = template.smallFastModel;
+  if (template.wireApi) profile.wireApi = template.wireApi;
   return profile;
 }
 

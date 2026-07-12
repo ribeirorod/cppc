@@ -71,6 +71,7 @@ const templates: ProviderTemplate[] = [
     baseUrl: 'http://localhost:11434/v1',
     defaultModel: 'llama3',
     validateUrl: 'http://localhost:11434/v1/models',
+    wireApi: 'openai',
   },
 ];
 

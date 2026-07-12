@@ -11,6 +11,7 @@ import { registerFallback } from './commands/fallback.js';
 import { registerCheck } from './commands/check.js';
 import { registerReset } from './commands/reset.js';
 import { registerClaude } from './commands/claude.js';
+import { registerHarnesses } from './commands/harness.js';
 import { registerModels } from './commands/models.js';
 import { registerWizard } from './commands/wizard.js';
 import { getAllTemplates } from './lib/providers.js';
@@ -39,6 +40,7 @@ registerFallback(program);
 registerCheck(program);
 registerReset(program);
 registerClaude(program);
+registerHarnesses(program);
 registerModels(program);
 registerWizard(program);
 
@@ -87,6 +89,11 @@ Quick launch:
 One provider, many models (OpenRouter):
   cppc models --search deepseek            # Browse the catalog
   cppc claude -p openrouter --model deepseek/deepseek-chat
+
+Other harnesses (same profiles, different agent CLIs):
+  cppc opencode -p minimax -m plan         # OpenCode with a profile applied
+  cppc pi -p deepseek                      # pi (pi.dev)
+  cppc codex -p openrouter -m autonomous   # Codex (OpenRouter only)
 `);
 
 program.parseAsync(process.argv).catch((error) => {

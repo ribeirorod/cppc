@@ -54,6 +54,7 @@ Examples:
         authToken,
         model: model || '',
         smallFastModel: template?.smallFastModel,
+        wireApi: template?.wireApi,
       };
 
       const config: Config = {

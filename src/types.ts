@@ -8,6 +8,8 @@ export interface Profile {
   subagentModel?: string;
   timeoutMs?: string;
   disableTraffic?: string;
+  /** Wire protocol the endpoint speaks: 'anthropic' (default) or 'openai' */
+  wireApi?: string;
 }
 
 /** Parsed .cppc.env configuration */
@@ -27,6 +29,8 @@ export interface ProviderTemplate {
   validateUrl: string;
   /** If true, uses OAuth (claude login) — no API key needed */
   oauth?: boolean;
+  /** Wire protocol the endpoint speaks (default 'anthropic') */
+  wireApi?: 'anthropic' | 'openai';
 }
 
 /** Result of a health check */
