@@ -1,7 +1,7 @@
 import type { Command } from 'commander';
-import { spawn } from 'node:child_process';
 import { loadConfig } from '../lib/config.js';
 import { profileToJson } from '../lib/env-mapper.js';
+import { launchClaude, modeArgs } from '../lib/launch.js';
 import { out, err } from '../lib/output.js';
 
 export function registerClaude(program: Command): void {
@@ -43,58 +43,24 @@ Modes:
         return;
       }
 
-      // Build env vars from profile
-      const envOverrides = profileToJson(profile);
+      const extraEnv: Record<string, string> = opts.model ? { ANTHROPIC_MODEL: opts.model } : {};
 
-      // Override model if specified
-      if (opts.model) {
-        envOverrides['ANTHROPIC_MODEL'] = opts.model;
-      }
-
-      // Build claude args
-      const claudeArgs: string[] = [];
-
-      // Permission mode
-      if (opts.mode === 'autonomous') {
-        claudeArgs.push('--dangerously-skip-permissions');
-      } else if (opts.mode === 'plan') {
-        claudeArgs.push('--plan');
-      }
-
-      if (opts.print) {
-        claudeArgs.push('--print');
-      }
-
-      if (opts.resume) {
-        claudeArgs.push('--resume');
-      }
-
-      // Pass through any remaining args after --
-      const passthrough = cmd.args || [];
-      claudeArgs.push(...passthrough);
-
-      // Merge env: current process env + profile overrides
-      const childEnv = { ...process.env, ...envOverrides };
+      const claudeArgs = [
+        ...modeArgs(opts.mode),
+        ...(opts.print ? ['--print'] : []),
+        ...(opts.resume ? ['--resume'] : []),
+        ...(cmd.args || []), // Pass through any remaining args after --
+      ];
 
       out(`Launching claude with profile '${profileName}'${opts.mode === 'autonomous' ? ' (autonomous)' : ''}...`, {
         profile: profileName,
         mode: opts.mode || 'default',
-        env_overrides: Object.keys(envOverrides),
+        env_overrides: Object.keys({ ...profileToJson(profile), ...extraEnv }),
       });
 
-      // Spawn claude with inherited stdio for full interactivity
-      const child = spawn('claude', claudeArgs, {
-        env: childEnv,
-        stdio: 'inherit',
-        shell: true,
-      });
-
+      const child = launchClaude(profile, claudeArgs, extraEnv);
       child.on('error', (e) => {
         err(`Failed to launch claude: ${e.message}. Is Claude Code installed?`);
-      });
-
-      child.on('close', (code) => {
-        process.exitCode = code ?? 0;
       });
     });
 }

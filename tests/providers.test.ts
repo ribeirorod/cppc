@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { getTemplate, getAllTemplates, getTemplateOrThrow } from '../src/lib/providers.js';
+import { getTemplate, getAllTemplates } from '../src/lib/providers.js';
 
 describe('provider registry', () => {
   it('returns all templates', () => {
@@ -26,9 +26,5 @@ describe('provider registry', () => {
 
   it('returns undefined for unknown id', () => {
     assert.equal(getTemplate('nope'), undefined);
-  });
-
-  it('throws for unknown id with getTemplateOrThrow', () => {
-    assert.throws(() => getTemplateOrThrow('nope'), /Unknown provider: nope/);
   });
 });

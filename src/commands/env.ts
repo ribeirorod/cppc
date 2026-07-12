@@ -1,7 +1,7 @@
 import type { Command } from 'commander';
 import { loadConfig } from '../lib/config.js';
 import { profileToExports, profileToJson } from '../lib/env-mapper.js';
-import { out, err, isJsonMode } from '../lib/output.js';
+import { out, err } from '../lib/output.js';
 
 export function registerEnv(program: Command): void {
   program
@@ -28,10 +28,6 @@ Examples:
         return;
       }
 
-      if (isJsonMode()) {
-        out('', profileToJson(profile));
-      } else {
-        console.log(profileToExports(profile));
-      }
+      out(profileToExports(profile), profileToJson(profile));
     });
 }

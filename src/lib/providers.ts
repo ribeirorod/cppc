@@ -77,9 +77,3 @@ export function getAllTemplates(): ProviderTemplate[] {
 export function getTemplate(id: string): ProviderTemplate | undefined {
   return templates.find(t => t.id === id);
 }
-
-export function getTemplateOrThrow(id: string): ProviderTemplate {
-  const t = getTemplate(id);
-  if (!t) throw new Error(`Unknown provider: ${id}. Available: ${templates.map(t => t.id).join(', ')}`);
-  return t;
-}

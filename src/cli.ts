@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { readFileSync } from 'node:fs';
 import { Command } from 'commander';
 import { setJsonMode } from './lib/output.js';
 import { registerInit } from './commands/init.js';
@@ -13,12 +14,14 @@ import { registerClaude } from './commands/claude.js';
 import { registerWizard } from './commands/wizard.js';
 import { getAllTemplates } from './lib/providers.js';
 
+const { version } = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf-8'));
+
 const program = new Command();
 
 program
   .name('cppc')
   .description('Claude Profiled Provider CLI — agent-friendly provider switching for Claude Code & Agent SDK')
-  .version('0.1.0', '-v, --version')
+  .version(version, '-v, --version')
   .option('--json', 'Output in JSON format for programmatic use')
   .hook('preAction', (thisCommand) => {
     const opts = thisCommand.optsWithGlobals();
