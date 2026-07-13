@@ -31,3 +31,10 @@ export function launchHarness(harness: Harness, profile: Profile, args: string[]
 export function launchClaude(profile: Profile, args: string[], model?: string): ChildProcess {
   return launchHarness(getHarness('claude')!, profile, args, model);
 }
+
+/** Spawn a harness with its own native auth/config — no profile injection */
+export function launchNative(harness: Harness, args: string[]): ChildProcess {
+  const child = spawn(harness.bin, args, { stdio: 'inherit', shell: true });
+  child.on('close', (code) => { process.exitCode = code ?? 0; });
+  return child;
+}

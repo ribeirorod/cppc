@@ -1,7 +1,7 @@
 import type { Command } from 'commander';
 import { loadConfig } from '../lib/config.js';
-import { getHarness } from '../lib/harnesses.js';
-import { launchClaude, modeArgs } from '../lib/launch.js';
+import { getHarness, normalizeMode } from '../lib/harnesses.js';
+import { launchClaude, launchNative, modeArgs } from '../lib/launch.js';
 import { out, err } from '../lib/output.js';
 
 export function registerClaude(program: Command): void {
@@ -9,10 +9,11 @@ export function registerClaude(program: Command): void {
     .command('claude')
     .description('Launch a Claude Code terminal with a specific profile')
     .option('-p, --profile <name>', 'Profile to use (defaults to active)')
-    .option('-m, --mode <mode>', 'Permission mode: autonomous | default | plan (default: default)')
+    .option('-m, --mode <mode>', 'Permission policy: yolo | edit | safe (aka autonomous | default | plan)')
     .option('--print', 'Use claude --print (non-interactive, pipe-friendly)')
     .option('--resume', 'Resume last conversation')
     .option('--model <model>', 'Override the model for this session')
+    .option('--native', "Use claude's own login/env — no profile injection")
     .allowUnknownOption(true)
     .addHelpText('after', `
 Examples:
@@ -31,6 +32,23 @@ Modes:
   plan         Equivalent to --plan
     `)
     .action((opts, cmd) => {
+      const mode = normalizeMode(opts.mode);
+      const harness = getHarness('claude')!;
+
+      if (opts.native) {
+        const args = [
+          ...(opts.model ? harness.nativeModelArgs(opts.model) : []),
+          ...modeArgs(mode),
+          ...(opts.print ? ['--print'] : []),
+          ...(opts.resume ? ['--resume'] : []),
+          ...(cmd.args || []),
+        ];
+        out('Launching claude (native auth)...', { native: true, mode: opts.mode || 'edit' });
+        const child = launchNative(harness, args);
+        child.on('error', (e) => err(`Failed to launch claude: ${e.message}. Is Claude Code installed?`));
+        return;
+      }
+
       const config = loadConfig();
       if (!config) {
         err('No .cppc.env found. Run: cppc init');
@@ -45,16 +63,16 @@ Modes:
       }
 
       const claudeArgs = [
-        ...modeArgs(opts.mode),
+        ...modeArgs(mode),
         ...(opts.print ? ['--print'] : []),
         ...(opts.resume ? ['--resume'] : []),
         ...(cmd.args || []), // Pass through any remaining args after --
       ];
 
-      out(`Launching claude with profile '${profileName}'${opts.mode === 'autonomous' ? ' (autonomous)' : ''}...`, {
+      out(`Launching claude with profile '${profileName}'${mode === 'autonomous' ? ' (autonomous)' : ''}...`, {
         profile: profileName,
-        mode: opts.mode || 'default',
-        env_overrides: Object.keys(getHarness('claude')!.buildEnv(profile, opts.model)),
+        mode: opts.mode || 'edit',
+        env_overrides: Object.keys(harness.buildEnv(profile, opts.model)),
       });
 
       const child = launchClaude(profile, claudeArgs, opts.model);

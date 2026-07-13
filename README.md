@@ -87,7 +87,45 @@ cppc pi       -p deepseek                 # pi (pi.dev)
 cppc codex    -p openrouter -m autonomous # OpenAI Codex CLI
 ```
 
-All harness commands share the same flags: `-p/--profile`, `-m/--mode` (`default | autonomous | plan`), `--model`, and `--` passthrough. No harness config files are ever written — cppc wires profiles in per-launch (env vars for Claude Code and pi, inline `OPENCODE_CONFIG_CONTENT` for OpenCode, `-c` overrides for Codex).
+All harness commands share the same flags: `-p/--profile`, `-m/--mode`, `--model`, `--native`, and `--` passthrough. No harness config files are ever written — cppc wires profiles in per-launch (env vars for Claude Code and pi, inline `OPENCODE_CONFIG_CONTENT` for OpenCode, `-c` overrides for Codex).
+
+### Unified permission policies
+
+One policy vocabulary, translated per harness — callers (human or agent) don't need to know each CLI's flags:
+
+| Policy | Meaning | claude | codex | opencode | pi |
+|--------|---------|--------|-------|----------|-----|
+| `yolo` | fully autonomous | `--dangerously-skip-permissions` | `--dangerously-bypass-approvals-and-sandbox` | `--auto` | (always) |
+| `edit` | work, ask when risky | *(default)* | *(default)* | *(default)* | n/a — pi is always yolo |
+| `safe` | read-only / plan | `--plan` | `--sandbox read-only` | `--agent plan` | refused with clear error |
+
+The legacy names (`autonomous | default | plan`) still work everywhere.
+
+### Native launches
+
+`--native` (or profile `native` in `cppc run` targets) launches a harness with **its own** auth and config — no profile injection. Handy when your active profile is a cheap provider but you just want your Claude subscription for one session:
+
+```bash
+cppc claude --native            # your claude login, untouched
+cppc codex --native -m yolo     # codex with its native OpenAI auth
+```
+
+### `cppc run` — unified non-interactive verb
+
+One spawn contract across all harnesses (`--print` / `codex exec` / `opencode run` / `pi -p` are translated for you) — built for agentic workflows:
+
+```bash
+cppc run "explain this repo"                            # claude + active profile
+cppc run -H opencode -p minimax --policy safe "plan the refactor"
+cppc run -p native --policy yolo "fix the failing test"
+
+# Fan-out: the same task through several harness/model pairs, in parallel
+cppc run --on claude:openrouter:anthropic/claude-sonnet-5 \
+         --on codex:openrouter:openai/gpt-5.2 \
+         --json "review src/lib/config.ts for bugs"
+```
+
+Targets are `harness[:profile[:model]]` (`active` and `native` are special profile names). A single target streams straight through with its exit code; multiple targets run in parallel and report labeled results (or a JSON array with `--json`) — disagreement between models is signal.
 
 | Harness | Command | Profile compatibility | Mode notes |
 |---------|---------|----------------------|------------|
@@ -117,6 +155,7 @@ Profiles carry an optional `WIRE_API` field in `.cppc.env` (`anthropic` default,
 | `cppc check [profile]` | Health-check a provider endpoint (`--all` for all) |
 | `cppc claude` | Launch a Claude terminal with profile env vars injected |
 | `cppc codex` / `cppc pi` / `cppc opencode` | Launch other agent harnesses with a profile applied |
+| `cppc run <prompt>` | Non-interactive run through one or more harnesses (`--on` fan-out) |
 | `cppc models` | List models available through an OpenRouter profile |
 | `cppc providers` | List built-in provider templates |
 | `cppc reset` | Remove `.cppc.env` |

@@ -17,6 +17,19 @@ export interface Harness {
   modeArgs(mode?: string): string[];
   /** Args wiring the profile/model into the harness (e.g. --model flags, codex -c overrides) */
   profileArgs(profile: Profile, model?: string): string[];
+  /** Model flag for native (no-profile) launches */
+  nativeModelArgs(model: string): string[];
+  /** Subcommand prefix for non-interactive runs (e.g. ['exec'], ['run']) */
+  execPrefix: string[];
+  /** Args carrying the prompt for a non-interactive run */
+  promptArgs(prompt: string): string[];
+}
+
+/** Unified permission policies: yolo | edit | safe (legacy autonomous | default | plan accepted) */
+export function normalizeMode(mode?: string): string | undefined {
+  if (!mode) return undefined;
+  const aliases: Record<string, string> = { yolo: 'autonomous', edit: 'default', safe: 'plan' };
+  return aliases[mode] ?? mode;
 }
 
 const claude: Harness = {
@@ -34,6 +47,9 @@ const claude: Harness = {
     return [];
   },
   profileArgs: () => [],
+  nativeModelArgs: (model) => ['--model', model],
+  execPrefix: [],
+  promptArgs: (prompt) => ['--print', prompt],
 };
 
 // Codex speaks only the OpenAI Responses API (chat-completions support was removed),
@@ -74,6 +90,9 @@ const codex: Harness = {
       ...(m ? ['-m', m] : []),
     ];
   },
+  nativeModelArgs: (model) => ['-m', model],
+  execPrefix: ['exec'],
+  promptArgs: (prompt) => [prompt],
 };
 
 // pi ships built-in providers with dedicated env vars for most of cppc's catalog,
@@ -112,6 +131,9 @@ const pi: Harness = {
     const m = model || profile.model;
     return m ? ['--model', m] : [];
   },
+  nativeModelArgs: (model) => ['--model', model],
+  execPrefix: [],
+  promptArgs: (prompt) => ['-p', prompt],
 };
 
 // OpenCode takes inline JSON config via OPENCODE_CONFIG_CONTENT — we synthesize a
@@ -149,6 +171,9 @@ const opencode: Harness = {
     // OAuth/native profiles have no synthesized provider — pass the model as given
     return ['--model', (profile.baseUrl || profile.authToken) ? `cppc/${m}` : m];
   },
+  nativeModelArgs: (model) => ['--model', model],
+  execPrefix: ['run'],
+  promptArgs: (prompt) => [prompt],
 };
 
 const harnesses: Harness[] = [claude, codex, pi, opencode];
