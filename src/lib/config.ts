@@ -1,8 +1,24 @@
-import { readFileSync, writeFileSync, existsSync } from 'node:fs';
-import { join } from 'node:path';
+import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs';
+import { join, dirname } from 'node:path';
+import { homedir } from 'node:os';
 import type { Config, Profile } from '../types.js';
 
 const CPPC_FILE = '.cppc.env';
+
+/** Global config home: ~/.cppc (override with CPPC_HOME) */
+export function globalConfigDir(): string {
+  return process.env.CPPC_HOME || join(homedir(), '.cppc');
+}
+
+/** Resolution order: project-local ./.cppc.env wins over global ~/.cppc/.cppc.env.
+ * Returns null when neither exists. */
+export function findConfigPath(): string | null {
+  const local = resolveConfigPath();
+  if (existsSync(local)) return local;
+  const global = join(globalConfigDir(), CPPC_FILE);
+  if (existsSync(global)) return global;
+  return null;
+}
 
 /** Parse a .cppc.env string into a Config object */
 export function parseConfig(content: string): Config {
@@ -89,16 +105,23 @@ export function resolveConfigPath(configDir?: string): string {
   return join(configDir || process.cwd(), CPPC_FILE);
 }
 
-/** Load config from disk. Returns null if file doesn't exist. */
+/** Load config from disk (explicit dir, or local-then-global resolution).
+ * Returns null if no config exists. */
 export function loadConfig(configDir?: string): Config | null {
-  const path = resolveConfigPath(configDir);
-  if (!existsSync(path)) return null;
+  const path = configDir ? resolveConfigPath(configDir) : findConfigPath();
+  if (!path || !existsSync(path)) return null;
   const content = readFileSync(path, 'utf-8');
   return parseConfig(content);
 }
 
-/** Save config to disk. */
-export function saveConfig(config: Config, configDir?: string): void {
-  const path = resolveConfigPath(configDir);
-  writeFileSync(path, serializeConfig(config), 'utf-8');
+/** Save config to disk. Without an explicit dir, writes back to the resolved config
+ * (local wins over global) or creates the global ~/.cppc/.cppc.env for fresh setups.
+ * The file holds API keys, so it's written owner-only (0600). Returns the path. */
+export function saveConfig(config: Config, configDir?: string): string {
+  const path = configDir
+    ? resolveConfigPath(configDir)
+    : findConfigPath() ?? join(globalConfigDir(), CPPC_FILE);
+  mkdirSync(dirname(path), { recursive: true });
+  writeFileSync(path, serializeConfig(config), { encoding: 'utf-8', mode: 0o600 });
+  return path;
 }

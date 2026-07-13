@@ -1,7 +1,7 @@
 import type { Command } from 'commander';
 import { unlinkSync } from 'node:fs';
 import { select, input, confirm } from '@inquirer/prompts';
-import { loadConfig, saveConfig, resolveConfigPath } from '../lib/config.js';
+import { loadConfig, saveConfig, resolveConfigPath, findConfigPath, globalConfigDir } from '../lib/config.js';
 import { getAllTemplates, getTemplate } from '../lib/providers.js';
 import { profileToExports } from '../lib/env-mapper.js';
 import { checkHealth, formatHealth } from '../lib/health.js';
@@ -81,7 +81,7 @@ async function buildProfile(template: ProviderTemplate, model: string): Promise<
 
 async function firstRunSetup(): Promise<void> {
   banner();
-  console.log(`${YELLOW}  No .cppc.env found. Let's set up your first provider.${RESET}\n`);
+  console.log(`${YELLOW}  No credentials found (checked ./.cppc.env and ${globalConfigDir()}). Let's set up your first provider.${RESET}\n`);
 
   const selected = await selectProvider();
   if (!selected) { console.log(`\n${DIM}  Exited.${RESET}`); return; }
@@ -89,15 +89,24 @@ async function firstRunSetup(): Promise<void> {
   const profile = await buildProfile(selected.template, selected.model);
   if (!profile) { console.log(`\n${DIM}  Exited.${RESET}`); return; }
 
+  const scope = await ask(() => select({
+    message: 'Where should credentials live?',
+    choices: [
+      { name: `Global — ${globalConfigDir()} (recommended, works everywhere)`, value: 'global' as const },
+      { name: `This project — ${resolveConfigPath()}`, value: 'project' as const },
+    ],
+  }));
+  if (scope === null) { console.log(`\n${DIM}  Exited.${RESET}`); return; }
+
   const config: Config = {
     active: profile.name,
     fallback: [],
     profiles: new Map([[profile.name, profile]]),
   };
 
-  saveConfig(config);
+  const savedPath = saveConfig(config, scope === 'project' ? process.cwd() : undefined);
   console.log(`${GREEN}  ✓ Profile '${profile.name}' created and set as active.${RESET}`);
-  console.log(`${DIM}  Config saved to ${resolveConfigPath()}${RESET}\n`);
+  console.log(`${DIM}  Config saved to ${savedPath} (owner-only permissions)${RESET}\n`);
 
   const addMore = await ask(() => confirm({ message: 'Add another provider (for fallback)?', default: false }));
   if (addMore) await addProfileFlow(config);
@@ -274,10 +283,11 @@ async function mainMenu(): Promise<void> {
       break;
     }
     case 'reset': {
-      const sure = await ask(() => confirm({ message: 'Remove .cppc.env? This cannot be undone.', default: false }));
+      const path = findConfigPath()!;
+      const sure = await ask(() => confirm({ message: `Remove ${path}? This cannot be undone.`, default: false }));
       if (!sure) break;
-      unlinkSync(resolveConfigPath());
-      console.log(`${GREEN}  ✓ Removed .cppc.env.${RESET}`);
+      unlinkSync(path);
+      console.log(`${GREEN}  ✓ Removed ${path}.${RESET}`);
       return;
     }
     case 'exit':
@@ -293,8 +303,24 @@ export function registerWizard(program: Command): void {
     const config = loadConfig();
     if (!config) {
       await firstRunSetup();
-    } else {
-      await mainMenu();
+      return;
     }
+
+    // Credentials exist — say where they came from and ask before using them
+    const path = findConfigPath()!;
+    const scope = path.startsWith(globalConfigDir()) ? 'global' : 'project';
+    console.log(`\n${CYAN}  Credentials found (${scope}): ${DIM}${path}${RESET}`);
+    console.log(`${DIM}  Profiles: ${[...config.profiles.keys()].join(', ')} · active: ${config.active}${RESET}\n`);
+
+    const useThem = await ask(() => confirm({ message: 'Use these credentials?', default: true }));
+    if (!useThem) {
+      console.log(`\n${DIM}  Not using ${path}.`);
+      console.log(`  Start fresh here:   cppc init --project ...`);
+      console.log(`  Remove them:        cppc reset`);
+      console.log(`  Native harness run: cppc claude --native${RESET}\n`);
+      return;
+    }
+
+    await mainMenu();
   });
 }

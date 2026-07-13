@@ -16,7 +16,7 @@ Run `cppc` with no arguments to launch the interactive wizard:
 cppc
 ```
 
-It detects whether `.cppc.env` exists. First run walks you through provider selection and API key setup. Subsequent runs open the main menu.
+It searches for credentials locally (`./.cppc.env`), then globally (`~/.cppc/.cppc.env`). First run walks you through provider selection, API key setup, and where to store them (global recommended). When credentials are found, the wizard tells you where they came from and asks before using them.
 
 Or use commands directly:
 
@@ -141,7 +141,7 @@ Profiles carry an optional `WIRE_API` field in `.cppc.env` (`anthropic` default,
 | Command | Description |
 |---------|-------------|
 | `cppc` | Interactive wizard (first-run setup or main menu) |
-| `cppc init` | Create `.cppc.env` with a starter profile |
+| `cppc init` | Create `.cppc.env` with a starter profile (global by default, `--project` for local) |
 | `cppc env` | Print `export` statements for the active profile |
 | `cppc status` | Show active profile, fallback chain, profile count |
 | `cppc switch <profile>` | Set the active profile |
@@ -346,7 +346,12 @@ try {
 
 ## Config
 
-Single flat file: `.cppc.env` in your project directory. Add it to `.gitignore` — it contains auth tokens.
+Single flat file, resolved **local first, then global**:
+
+1. `./.cppc.env` — project-scoped, wins when present (create with `cppc init --project`; add it to `.gitignore` — it contains auth tokens)
+2. `~/.cppc/.cppc.env` — the default home for your keys (override the directory with `CPPC_HOME`)
+
+Fresh setups save globally so your keys live in one place and work from any directory. The file is written with owner-only permissions (0600). `cppc status` shows which config is active; `cppc reset` removes the resolved one (local first, then global).
 
 ```env
 CPPC_ACTIVE=anthropic
@@ -361,7 +366,7 @@ CPPC__minimax__AUTH_TOKEN=mm-xxx
 CPPC__minimax__MODEL=MiniMax-M2.7
 ```
 
-Profiles are project-scoped. CPPC never touches `~/.claude/settings.json` or any global config.
+CPPC never touches `~/.claude/settings.json` or any harness's own config.
 
 ## License
 
