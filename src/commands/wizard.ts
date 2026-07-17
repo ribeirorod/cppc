@@ -1,7 +1,8 @@
 import type { Command } from 'commander';
 import { unlinkSync } from 'node:fs';
 import { select, input, confirm } from '@inquirer/prompts';
-import { loadConfig, saveConfig, resolveConfigPath, findConfigPath, globalConfigDir } from '../lib/config.js';
+import { existsSync } from 'node:fs';
+import { loadConfig, saveConfig, resolveConfigPath, findConfigPath, discoverConfigs, configScope, globalConfigDir } from '../lib/config.js';
 import { getAllTemplates, getTemplate } from '../lib/providers.js';
 import { profileToExports } from '../lib/env-mapper.js';
 import { checkHealth, formatHealth } from '../lib/health.js';
@@ -298,6 +299,13 @@ async function mainMenu(): Promise<void> {
   await mainMenu();
 }
 
+function optOutHints(path: string): void {
+  console.log(`\n${DIM}  Not using ${path}.`);
+  console.log(`  Start fresh here:   cppc init --project ...`);
+  console.log(`  Remove them:        cppc reset`);
+  console.log(`  Native harness run: cppc claude --native${RESET}\n`);
+}
+
 export function registerWizard(program: Command): void {
   program.action(async () => {
     const config = loadConfig();
@@ -306,19 +314,45 @@ export function registerWizard(program: Command): void {
       return;
     }
 
-    // Credentials exist — say where they came from and ask before using them
     const path = findConfigPath()!;
-    const scope = path.startsWith(globalConfigDir()) ? 'global' : 'project';
-    console.log(`\n${CYAN}  Credentials found (${scope}): ${DIM}${path}${RESET}`);
-    console.log(`${DIM}  Profiles: ${[...config.profiles.keys()].join(', ')} · active: ${config.active}${RESET}\n`);
+    const scope = configScope(path);
+    const hasLocal = existsSync(resolveConfigPath());
 
-    const useThem = await ask(() => confirm({ message: 'Use these credentials?', default: true }));
-    if (!useThem) {
-      console.log(`\n${DIM}  Not using ${path}.`);
-      console.log(`  Start fresh here:   cppc init --project ...`);
-      console.log(`  Remove them:        cppc reset`);
-      console.log(`  Native harness run: cppc claude --native${RESET}\n`);
+    console.log(`\n${CYAN}  Credentials found (${scope}): ${DIM}${path}${RESET}`);
+    console.log(`${DIM}  Profiles: ${[...config.profiles.keys()].join(', ')} · active: ${config.active}${RESET}`);
+
+    // A project-local .cppc.env is already here — just confirm and go.
+    if (hasLocal && scope === 'project') {
+      console.log('');
+      const useThem = await ask(() => confirm({ message: 'Use these credentials?', default: true }));
+      if (!useThem) { optOutHints(path); return; }
+      await mainMenu();
       return;
+    }
+
+    // Credentials live elsewhere (home / global / a parent folder) and there's no
+    // project-local file. Don't force a copy-paste — offer to reuse or clone them.
+    console.log(`${DIM}  No .cppc.env in this project (${process.cwd()}).${RESET}\n`);
+
+    const choice = await ask(() => select({
+      message: 'How should this project get its credentials?',
+      choices: [
+        { name: `Use the ${scope} credentials as-is ${DIM}(recommended)${RESET}`, value: 'use' as const },
+        { name: `Copy them into a project-scoped .cppc.env here ${DIM}(no keys to re-enter)${RESET}`, value: 'copy' as const },
+        { name: 'Start fresh — pick providers for this project', value: 'fresh' as const },
+        { name: 'Exit', value: 'exit' as const },
+      ],
+    }));
+    if (choice === null || choice === 'exit') { console.log(`\n${DIM}  Exited.${RESET}`); return; }
+
+    if (choice === 'fresh') { await firstRunSetup(); return; }
+
+    if (choice === 'copy') {
+      const savedPath = saveConfig(config, process.cwd());
+      console.log(`${GREEN}  ✓ Copied ${config.profiles.size} profile(s) into ${savedPath}.${RESET}`);
+      console.log(`${DIM}  This project now uses its own credentials; edits here won't touch ${path}.${RESET}\n`);
+    } else {
+      console.log(`${GREEN}  Using ${scope} credentials — ${DIM}${path}${RESET}\n`);
     }
 
     await mainMenu();

@@ -10,14 +10,48 @@ export function globalConfigDir(): string {
   return process.env.CPPC_HOME || join(homedir(), '.cppc');
 }
 
-/** Resolution order: project-local ./.cppc.env wins over global ~/.cppc/.cppc.env.
- * Returns null when neither exists. */
+/** Discover every .cppc.env visible from here, nearest first.
+ * Walks up from the current directory (so a project-local file, or one in any
+ * parent — including your home folder — is found), then the global ~/.cppc dir.
+ * Deduplicated; only existing files are returned. */
+export function discoverConfigs(): string[] {
+  const found: string[] = [];
+  const seen = new Set<string>();
+  const add = (p: string) => {
+    if (seen.has(p)) return;
+    seen.add(p);
+    if (existsSync(p)) found.push(p);
+  };
+
+  // Walk up the directory tree: ./.cppc.env, then each parent's, up to the root.
+  // This naturally catches a home-level ~/.cppc.env whenever you're working
+  // anywhere beneath your home folder.
+  let dir = process.cwd();
+  while (true) {
+    add(join(dir, CPPC_FILE));
+    const parent = dirname(dir);
+    if (parent === dir) break;
+    dir = parent;
+  }
+
+  // The dedicated global config dir (~/.cppc/.cppc.env, or $CPPC_HOME).
+  add(join(globalConfigDir(), CPPC_FILE));
+
+  return found;
+}
+
+/** Resolution order: nearest .cppc.env wins (project-local, then any parent),
+ * falling back to the global ~/.cppc/.cppc.env. Returns null when none exist. */
 export function findConfigPath(): string | null {
-  const local = resolveConfigPath();
-  if (existsSync(local)) return local;
-  const global = join(globalConfigDir(), CPPC_FILE);
-  if (existsSync(global)) return global;
-  return null;
+  return discoverConfigs()[0] ?? null;
+}
+
+/** Classify where a resolved config lives, for user-facing messaging. */
+export function configScope(path: string): 'project' | 'home' | 'global' | 'inherited' {
+  if (path === resolveConfigPath()) return 'project';
+  if (path === join(globalConfigDir(), CPPC_FILE)) return 'global';
+  if (path === join(homedir(), CPPC_FILE)) return 'home';
+  return 'inherited';
 }
 
 /** Parse a .cppc.env string into a Config object */

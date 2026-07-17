@@ -18,7 +18,7 @@ Run `cppc` with no arguments to launch the interactive wizard:
 cppc
 ```
 
-It searches for credentials locally (`./.cppc.env`), then globally (`~/.cppc/.cppc.env`). First run walks you through provider selection, API key setup, and where to store them (global recommended). When credentials are found, the wizard tells you where they came from and asks before using them.
+It searches for credentials nearest-first — `./.cppc.env`, any parent folder (including a home-level `~/.cppc.env`), then the global `~/.cppc/.cppc.env`. First run walks you through provider selection, API key setup, and where to store them (global recommended). When credentials are found outside the current project, the wizard shows where they came from and lets you reuse them, copy them into a project-scoped file, or start fresh — no re-entering keys you already have.
 
 Or use commands directly:
 
@@ -166,7 +166,7 @@ Profiles carry an optional `WIRE_API` field in `.cppc.env` (`anthropic` default,
 | `cppc run <prompt>` | Non-interactive run through one or more harnesses (`--on` fan-out) |
 | `cppc models` | List models available through an OpenRouter profile |
 | `cppc providers` | List built-in provider templates |
-| `cppc reset` | Remove the resolved `.cppc.env` (local first, then global) |
+| `cppc reset` | Remove the resolved `.cppc.env` (nearest first, then global) |
 
 Every command supports `--help` with examples and `--json` for machine-readable output.
 
@@ -354,12 +354,13 @@ try {
 
 ## Config
 
-Single flat file, resolved **local first, then global**:
+Single flat file, resolved **nearest first**. cppc walks up from the current directory and then checks the global home, so it finds your keys wherever they live:
 
 1. `./.cppc.env` — project-scoped, wins when present (create with `cppc init --project`; add it to `.gitignore` — it contains auth tokens)
-2. `~/.cppc/.cppc.env` — the default home for your keys (override the directory with `CPPC_HOME`)
+2. any parent folder's `.cppc.env`, including a home-level `~/.cppc.env` — picked up automatically when you work beneath it
+3. `~/.cppc/.cppc.env` — the default home for your keys (override the directory with `CPPC_HOME`)
 
-Fresh setups save globally so your keys live in one place and work from any directory. The file is written with owner-only permissions (0600). `cppc status` shows which config is active; `cppc reset` removes the resolved one (local first, then global).
+Fresh setups save globally so your keys live in one place and work from any directory. If you run bare `cppc` in a project that has no local `.cppc.env` but credentials exist elsewhere, the wizard shows what it found and lets you **use them as-is**, **copy them into a project-scoped `.cppc.env`** (no keys to re-enter), or start fresh — so a project-scoped file is always an option, never an obligation. The file is written with owner-only permissions (0600). `cppc status` shows which config is active; `cppc reset` removes the resolved one.
 
 ```env
 CPPC_ACTIVE=anthropic

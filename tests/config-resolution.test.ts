@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdirSync, rmSync, writeFileSync, existsSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { loadConfig, saveConfig, findConfigPath, globalConfigDir } from '../src/lib/config.js';
+import { loadConfig, saveConfig, findConfigPath, discoverConfigs, configScope, globalConfigDir } from '../src/lib/config.js';
 import type { Config } from '../src/types.js';
 
 const base = join(tmpdir(), 'cppc-resolution-' + Date.now());
@@ -70,6 +70,31 @@ describe('config resolution (local → global)', () => {
     const path = saveConfig(sampleConfig('updated'));
     assert.equal(path, join(projectDir, '.cppc.env'));
     assert.ok(!existsSync(join(globalHome, '.cppc.env')));
+  });
+
+  it('discovers a config in a parent folder (walk-up)', () => {
+    // Config sits in the project's parent, not in the project itself.
+    writeFileSync(join(base, '.cppc.env'), 'CPPC_ACTIVE=parent\n');
+    const found = discoverConfigs();
+    assert.ok(found.includes(join(base, '.cppc.env')));
+    // With no local file, the parent config is what resolves.
+    assert.equal(findConfigPath(), join(base, '.cppc.env'));
+    assert.equal(loadConfig()?.active, 'parent');
+  });
+
+  it('orders discovery nearest-first: project → parent → global', () => {
+    writeFileSync(join(globalHome, '.cppc.env'), 'CPPC_ACTIVE=glob\n');
+    writeFileSync(join(base, '.cppc.env'), 'CPPC_ACTIVE=parent\n');
+    writeFileSync(join(projectDir, '.cppc.env'), 'CPPC_ACTIVE=local\n');
+    const found = discoverConfigs();
+    assert.equal(found[0], join(projectDir, '.cppc.env'));
+    assert.ok(found.indexOf(join(base, '.cppc.env')) < found.indexOf(join(globalHome, '.cppc.env')));
+  });
+
+  it('labels config scope', () => {
+    assert.equal(configScope(join(projectDir, '.cppc.env')), 'project');
+    assert.equal(configScope(join(globalHome, '.cppc.env')), 'global');
+    assert.equal(configScope(join(base, '.cppc.env')), 'inherited');
   });
 
   it('an explicit dir still bypasses resolution', () => {
