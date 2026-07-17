@@ -12,6 +12,36 @@ export function supportsTools(model: OpenRouterModel): boolean {
   return (model.supported_parameters ?? []).includes('tools');
 }
 
+/** OpenRouter server-side routing directives — not in the /v1/models catalog but
+ *  valid model strings that OpenRouter resolves at inference time. */
+export const OPENROUTER_ROUTES: OpenRouterModel[] = [
+  {
+    id: 'openrouter/pareto-code',
+    name: 'Pareto Code (coding-optimized routing)',
+    context_length: 0,
+    pricing: { prompt: '0', completion: '0' },
+    supported_parameters: ['tools'],
+  },
+  {
+    id: 'openrouter/free',
+    name: 'Free routing (best free model)',
+    context_length: 0,
+    pricing: { prompt: '0', completion: '0' },
+    supported_parameters: ['tools'],
+  },
+  {
+    id: 'openrouter/auto',
+    name: 'Auto routing (best model for prompt)',
+    context_length: 0,
+    pricing: { prompt: '0', completion: '0' },
+    supported_parameters: ['tools'],
+  },
+];
+
+export function isRoutingDirective(model: OpenRouterModel): boolean {
+  return OPENROUTER_ROUTES.some(r => r.id === model.id);
+}
+
 export async function fetchModels(baseUrl: string, authToken: string, timeoutMs = 10000): Promise<OpenRouterModel[]> {
   const url = baseUrl.replace(/\/$/, '') + '/v1/models';
   const controller = new AbortController();
@@ -24,7 +54,9 @@ export async function fetchModels(baseUrl: string, authToken: string, timeoutMs 
     });
     if (!response.ok) throw new Error(`HTTP ${response.status} from ${url}`);
     const body = await response.json() as { data?: OpenRouterModel[] };
-    return body.data ?? [];
+    const catalog = body.data ?? [];
+    // Prepend routing directives so they appear first in listings
+    return [...OPENROUTER_ROUTES, ...catalog];
   } finally {
     clearTimeout(timer);
   }
@@ -47,9 +79,14 @@ export function formatModelsTable(models: OpenRouterModel[]): string {
     const n = Number(price) * 1_000_000;
     return Number.isFinite(n) ? `$${n.toFixed(2)}` : '?';
   };
-  const header = `T  ${'model'.padEnd(44)} ${'context'.padStart(9)} ${'$/1M in'.padStart(9)} ${'$/1M out'.padStart(9)}`;
-  const rows = models.map(m =>
-    `${supportsTools(m) ? '✓' : ' '}  ${m.id.padEnd(44)} ${String(m.context_length).padStart(9)} ${perMillion(m.pricing.prompt).padStart(9)} ${perMillion(m.pricing.completion).padStart(9)}`
-  );
+  const header = `   ${'model'.padEnd(44)} ${'context'.padStart(9)} ${'$/1M in'.padStart(9)} ${'$/1M out'.padStart(9)}`;
+  const rows = models.map(m => {
+    if (isRoutingDirective(m)) {
+      const prefix = '⚡';
+      return `${prefix} ${m.id.padEnd(44)} ${'dynamic'.padStart(9)} ${'—'.padStart(9)} ${'—'.padStart(9)}`;
+    }
+    const tool = supportsTools(m) ? '✓' : ' ';
+    return `${tool}  ${m.id.padEnd(44)} ${String(m.context_length).padStart(9)} ${perMillion(m.pricing.prompt).padStart(9)} ${perMillion(m.pricing.completion).padStart(9)}`;
+  });
   return [header, ...rows].join('\n');
 }

@@ -1,6 +1,6 @@
 import { describe, it, afterEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
-import { fetchModels, filterModels, formatModelsTable, supportsTools } from '../src/lib/models.js';
+import { fetchModels, filterModels, formatModelsTable, supportsTools, isRoutingDirective, OPENROUTER_ROUTES } from '../src/lib/models.js';
 import type { OpenRouterModel } from '../src/lib/models.js';
 
 const FIXTURE: OpenRouterModel[] = [
@@ -42,8 +42,9 @@ describe('fetchModels', () => {
     const models = await fetchModels('https://openrouter.ai/api', 'sk-or-test');
     assert.equal(seenUrl, 'https://openrouter.ai/api/v1/models');
     assert.equal(seenAuth, 'Bearer sk-or-test');
-    assert.equal(models.length, 3);
-    assert.equal(models[0].id, 'anthropic/claude-sonnet-5');
+    assert.equal(models.length, 6); // 3 routing directives prepended to 3 catalog models
+    assert.equal(models[0].id, 'openrouter/pareto-code');
+    assert.equal(models[3].id, 'anthropic/claude-sonnet-5');
   });
 
   it('throws a clean error on non-2xx', async () => {
@@ -75,5 +76,28 @@ describe('formatModelsTable', () => {
     assert.ok(table.includes('$15.00'));
     assert.ok(supportsTools(FIXTURE[0]));
     assert.ok(!supportsTools(FIXTURE[2]));
+  });
+
+  it('marks routing directives with ⚡ and shows dynamic context', () => {
+    const table = formatModelsTable(OPENROUTER_ROUTES);
+    assert.ok(table.includes('⚡'));
+    assert.ok(table.includes('openrouter/pareto-code'));
+    assert.ok(table.includes('openrouter/free'));
+    assert.ok(table.includes('openrouter/auto'));
+    assert.ok(table.includes('dynamic'));
+    // routing rows have — not $ pricing; header still has $/1M labels
+    const rows = table.split('\n').slice(1); // skip header
+    for (const row of rows) assert.ok(!row.includes('$'));
+  });
+});
+
+describe('isRoutingDirective', () => {
+  it('returns true for routing directives', () => {
+    assert.ok(isRoutingDirective(OPENROUTER_ROUTES[0]));
+    assert.ok(isRoutingDirective({ id: 'openrouter/pareto-code' } as OpenRouterModel));
+  });
+
+  it('returns false for catalog models', () => {
+    assert.ok(!isRoutingDirective(FIXTURE[0]));
   });
 });

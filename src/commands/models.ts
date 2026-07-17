@@ -19,8 +19,14 @@ Examples:
   cppc models --tools-only --free           # Free models that work with Claude Code
   cppc models --json                        # JSON output for agents
 
+Routing directives (resolved server-side by OpenRouter):
+  openrouter/pareto-code   — best coding model
+  openrouter/free          — best free model
+  openrouter/auto          — best model for the prompt
+
 Then launch with it:
-  cppc claude -p openrouter --model deepseek/deepseek-chat
+  cppc claude -p openrouter --model openrouter/pareto-code
+  cppc claude -p openrouter --model openrouter/auto
     `)
     .action(async (opts) => {
       const config = loadConfig();
@@ -45,8 +51,8 @@ Then launch with it:
         const shown = filtered.slice(0, parseInt(opts.limit, 10));
 
         const footer = filtered.length > shown.length
-          ? `… ${filtered.length - shown.length} more — narrow with --search or raise --limit. T ✓ = supports tool use (required by Claude Code).`
-          : 'T ✓ = supports tool use (required by Claude Code).';
+          ? `… ${filtered.length - shown.length} more — narrow with --search or raise --limit. ⚡ = routing directive (server-side), ✓ = tool use.`
+          : '⚡ = routing directive (server-side), ✓ = supports tool use (required by Claude Code).';
         out(`${formatModelsTable(shown)}\n${footer}`, shown);
       } catch (e) {
         err(`Failed to fetch models: ${e instanceof Error ? e.message : String(e)}`);
