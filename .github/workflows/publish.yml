@@ -1,25 +1,71 @@
-name: Publish to npm
+name: Publish
 
 on:
   push:
-    tags:
-      - 'v*'
+    branches: [main]
+  workflow_dispatch:
 
 jobs:
   publish:
     runs-on: ubuntu-latest
     permissions:
-      contents: read
+      contents: write
       id-token: write
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
       - uses: actions/setup-node@v4
         with:
           node-version: 20
           registry-url: https://registry.npmjs.org
+
       - run: npm ci
       - run: npm test
       - run: npm run build
-      - run: npm publish --provenance --access public
+
+      - name: Get package version
+        id: version
+        run: echo "value=$(node -p "require('./package.json').version")" >> "$GITHUB_OUTPUT"
+
+      - name: Check if already published to npm
+        id: check
+        run: |
+          PKG="@ribeirorod/cppc-cli"
+          VER="${{ steps.version.outputs.value }}"
+          if npm view "$PKG@$VER" version 2>/dev/null; then
+            echo "published=true" >> "$GITHUB_OUTPUT"
+            echo "v$VER already on npm — nothing to publish."
+          else
+            echo "published=false" >> "$GITHUB_OUTPUT"
+            echo "v$VER not yet published — proceeding."
+          fi
+
+      - name: Create and push tag
+        if: steps.check.outputs.published == 'false'
+        run: |
+          TAG="v${{ steps.version.outputs.value }}"
+          if ! git rev-parse "$TAG" >/dev/null 2>&1; then
+            git tag "$TAG"
+            git push origin "$TAG"
+            echo "Pushed tag $TAG"
+          else
+            echo "Tag $TAG already exists locally"
+          fi
+
+      - name: Create GitHub Release
+        if: steps.check.outputs.published == 'false'
+        run: |
+          gh release create "v${{ steps.version.outputs.value }}" \
+            --generate-notes \
+            --latest \
+            2>/dev/null || echo "Release may already exist — skipping."
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Publish to npm
+        if: steps.check.outputs.published == 'false'
+        run: npm publish --provenance --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

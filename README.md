@@ -151,6 +151,7 @@ Profiles carry an optional `WIRE_API` field in `.cppc.env` (`anthropic` default,
 | `cppc profile remove <name>` | Remove a profile |
 | `cppc fallback set <a,b,c>` | Set the fallback chain |
 | `cppc fallback activate` | Switch to the next provider in the chain |
+| `cppc fallback status` | Show current fallback chain status |
 | `cppc fallback reset` | Clear the fallback chain |
 | `cppc check [profile]` | Health-check a provider endpoint (`--all` for all) |
 | `cppc claude` | Launch a Claude terminal with profile env vars injected |
