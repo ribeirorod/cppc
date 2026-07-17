@@ -136,6 +136,7 @@ Known providers (auto-fill base URL & model): ${getAllTemplates().map(t => t.id)
         subagentModel: opts.subagentModel,
         timeoutMs: opts.timeout,
         disableTraffic: opts.disableTraffic ? '1' : undefined,
+        wireApi: template?.wireApi,
       };
 
       config.profiles.set(name, newProfile);

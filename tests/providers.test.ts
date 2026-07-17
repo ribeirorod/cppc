@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { getTemplate, getAllTemplates, getTemplateOrThrow } from '../src/lib/providers.js';
+import { getTemplate, getAllTemplates } from '../src/lib/providers.js';
 
 describe('provider registry', () => {
   it('returns all templates', () => {
@@ -28,7 +28,12 @@ describe('provider registry', () => {
     assert.equal(getTemplate('nope'), undefined);
   });
 
-  it('throws for unknown id with getTemplateOrThrow', () => {
-    assert.throws(() => getTemplateOrThrow('nope'), /Unknown provider: nope/);
+  it('points openrouter at the Anthropic-compatible surface', () => {
+    const or = getTemplate('openrouter');
+    assert.ok(or);
+    // Claude Code appends /v1/messages itself — a trailing /v1 here breaks it
+    assert.equal(or.baseUrl, 'https://openrouter.ai/api');
+    assert.equal(or.validateUrl, 'https://openrouter.ai/api/v1/models');
+    assert.match(or.defaultModel, /^anthropic\//);
   });
 });

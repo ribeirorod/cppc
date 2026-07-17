@@ -1,5 +1,5 @@
 import type { Command } from 'commander';
-import { loadConfig } from '../lib/config.js';
+import { loadConfig, findConfigPath } from '../lib/config.js';
 import { out, err, mask } from '../lib/output.js';
 
 export function registerStatus(program: Command): void {
@@ -26,13 +26,16 @@ Examples:
         auth_token: mask(p.authToken),
       }));
 
+      const configPath = findConfigPath();
       const data = {
         active: config.active,
         fallback: config.fallback,
         profiles,
+        config_path: configPath,
       };
 
       out([
+        `Config: ${configPath}`,
         `Active: ${config.active}`,
         `Fallback chain: ${config.fallback.length > 0 ? config.fallback.join(' → ') : '(none)'}`,
         `Profiles: ${[...config.profiles.keys()].join(', ')} (${config.profiles.size} configured)`,

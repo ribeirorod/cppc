@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { readFileSync } from 'node:fs';
 import { Command } from 'commander';
 import { setJsonMode } from './lib/output.js';
 import { registerInit } from './commands/init.js';
@@ -10,15 +11,20 @@ import { registerFallback } from './commands/fallback.js';
 import { registerCheck } from './commands/check.js';
 import { registerReset } from './commands/reset.js';
 import { registerClaude } from './commands/claude.js';
+import { registerHarnesses } from './commands/harness.js';
+import { registerModels } from './commands/models.js';
+import { registerRun } from './commands/run.js';
 import { registerWizard } from './commands/wizard.js';
 import { getAllTemplates } from './lib/providers.js';
+
+const { version } = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf-8'));
 
 const program = new Command();
 
 program
   .name('cppc')
   .description('Claude Profiled Provider CLI — agent-friendly provider switching for Claude Code & Agent SDK')
-  .version('0.1.0', '-v, --version')
+  .version(version, '-v, --version')
   .option('--json', 'Output in JSON format for programmatic use')
   .hook('preAction', (thisCommand) => {
     const opts = thisCommand.optsWithGlobals();
@@ -35,6 +41,9 @@ registerFallback(program);
 registerCheck(program);
 registerReset(program);
 registerClaude(program);
+registerHarnesses(program);
+registerModels(program);
+registerRun(program);
 registerWizard(program);
 
 // Provider list (convenience, no config needed)
@@ -78,6 +87,21 @@ Quick launch:
   cppc claude -p minimax -m autonomous     # Minimax terminal, no prompts
   cppc claude -p deepseek -m plan          # DeepSeek in plan mode
   cppc claude -p anthropic --resume        # Resume on Anthropic
+
+One provider, many models (OpenRouter):
+  cppc models --search deepseek            # Browse the catalog
+  cppc claude -p openrouter --model deepseek/deepseek-chat
+
+Other harnesses (same profiles, different agent CLIs):
+  cppc opencode -p minimax -m safe         # OpenCode with a profile applied
+  cppc pi -p deepseek                      # pi (pi.dev)
+  cppc codex -p openrouter -m yolo         # Codex (OpenRouter only)
+  cppc claude --native                     # Your claude login, no profile
+
+Non-interactive runs (agent-friendly):
+  cppc run "explain this repo"             # claude + active profile
+  cppc run --on claude:openrouter --on codex:openrouter "same task, two harnesses"
+  cppc run -H opencode --policy safe "plan the refactor"
 `);
 
 program.parseAsync(process.argv).catch((error) => {

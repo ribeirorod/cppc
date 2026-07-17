@@ -33,4 +33,13 @@ describe('env command logic', () => {
     assert.ok(exports.includes('export ANTHROPIC_BASE_URL="https://api.minimax.io/anthropic"'));
     assert.ok(exports.includes('export ANTHROPIC_AUTH_TOKEN="mm-test"'));
   });
+
+  it('a --model override wins over the stored profile model', () => {
+    const config = loadConfig(dir);
+    assert.ok(config);
+    const stored = config.profiles.get(config.active)!;
+    const exports = profileToExports({ ...stored, model: 'deepseek/deepseek-chat' });
+    assert.ok(exports.includes('export ANTHROPIC_MODEL="deepseek/deepseek-chat"'));
+    assert.ok(!exports.includes('MiniMax-M2.7'));
+  });
 });

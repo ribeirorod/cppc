@@ -8,6 +8,8 @@ export interface Profile {
   subagentModel?: string;
   timeoutMs?: string;
   disableTraffic?: string;
+  /** Wire protocol the endpoint speaks: 'anthropic' (default) or 'openai' */
+  wireApi?: string;
 }
 
 /** Parsed .cppc.env configuration */
@@ -27,6 +29,8 @@ export interface ProviderTemplate {
   validateUrl: string;
   /** If true, uses OAuth (claude login) — no API key needed */
   oauth?: boolean;
+  /** Wire protocol the endpoint speaks (default 'anthropic') */
+  wireApi?: 'anthropic' | 'openai';
 }
 
 /** Result of a health check */
@@ -44,13 +48,13 @@ export interface JsonOutput {
   error?: string;
 }
 
-/** Map of profile keys to their ANTHROPIC_* env var names */
+/** Map of Profile fields to their ANTHROPIC_* env var names */
 export const ENV_KEY_MAP: Record<string, string> = {
-  BASE_URL: 'ANTHROPIC_BASE_URL',
-  AUTH_TOKEN: 'ANTHROPIC_AUTH_TOKEN',
-  MODEL: 'ANTHROPIC_MODEL',
-  SMALL_FAST_MODEL: 'ANTHROPIC_SMALL_FAST_MODEL',
-  SUBAGENT_MODEL: 'CLAUDE_CODE_SUBAGENT_MODEL',
-  TIMEOUT_MS: 'API_TIMEOUT_MS',
-  DISABLE_TRAFFIC: 'CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC',
+  baseUrl: 'ANTHROPIC_BASE_URL',
+  authToken: 'ANTHROPIC_AUTH_TOKEN',
+  model: 'ANTHROPIC_MODEL',
+  smallFastModel: 'ANTHROPIC_SMALL_FAST_MODEL',
+  subagentModel: 'CLAUDE_CODE_SUBAGENT_MODEL',
+  timeoutMs: 'API_TIMEOUT_MS',
+  disableTraffic: 'CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC',
 };

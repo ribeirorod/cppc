@@ -16,7 +16,7 @@ Run `cppc` with no arguments to launch the interactive wizard:
 cppc
 ```
 
-It detects whether `.cppc.env` exists. First run walks you through provider selection and API key setup. Subsequent runs open the main menu.
+It searches for credentials locally (`./.cppc.env`), then globally (`~/.cppc/.cppc.env`). First run walks you through provider selection, API key setup, and where to store them (global recommended). When credentials are found, the wizard tells you where they came from and asks before using them.
 
 Or use commands directly:
 
@@ -48,21 +48,100 @@ Claude Code and the Agent SDK respect `ANTHROPIC_BASE_URL`, `ANTHROPIC_AUTH_TOKE
 | ID | Provider | Default Model |
 |----|----------|---------------|
 | `anthropic` | Anthropic (Claude Max / OAuth) | *(Claude default)* |
-| `anthropic-api` | Anthropic (API key) | claude-sonnet-4-20250514 |
+| `anthropic-api` | Anthropic (API key) | claude-sonnet-5 |
 | `minimax` | MiniMax | MiniMax-M2.7 |
 | `deepseek` | DeepSeek | deepseek-reasoner |
 | `kimi` | Kimi / Moonshot | K2.5 |
 | `qwen` | Qwen / DashScope | qwen3.5-plus |
 | `zhipu` | Z.AI / GLM | GLM-5.1 |
-| `openrouter` | OpenRouter | anthropic/claude-sonnet-4 |
+| `openrouter` | OpenRouter | anthropic/claude-sonnet-5 |
 | `ollama` | Ollama (local) | llama3 |
+
+Default models are just profile seeds — each profile stores its own `MODEL` in `.cppc.env`, so you can pin any model without waiting for a cppc release, and override it per-invocation with `--model`.
+
+### OpenRouter: one key, many models
+
+The `openrouter` template targets OpenRouter's Anthropic-compatible endpoint (`https://openrouter.ai/api` — Claude Code appends `/v1/messages` itself), giving one profile access to the whole catalog:
+
+```bash
+cppc profile add openrouter --auth-token sk-or-v1-...
+cppc models --search deepseek              # browse the catalog
+cppc claude -p openrouter --model deepseek/deepseek-chat
+eval $(cppc env --profile openrouter --model qwen/qwen3-coder)
+```
+
+Claude Code needs models that support tool use — `cppc models` marks them with ✓ (`--tools-only` to hide the rest). Non-Anthropic models rely on OpenRouter's tool-call translation and aren't guaranteed to behave perfectly.
+
+> **Upgrading?** If you created an `openrouter` profile before this fix, its base URL was `https://openrouter.ai/api/v1` (the OpenAI-compatible surface, which Claude Code can't use). Re-add the profile or edit `CPPC__openrouter__BASE_URL` in `.cppc.env` to `https://openrouter.ai/api`.
+
+Your Anthropic subscription keeps working as before: the `anthropic` (OAuth) profile exports nothing and never strips your `claude login` credentials — only token-based profiles clear a stale `ANTHROPIC_API_KEY` so it can't hijack their routing.
+
+## Harnesses: one profile, any agent CLI
+
+cppc profiles aren't just for Claude Code — the same profile can launch other coding-agent harnesses:
+
+```bash
+cppc claude   -p minimax                  # Claude Code (as always)
+cppc opencode -p minimax -m plan          # OpenCode, native plan mode
+cppc pi       -p deepseek                 # pi (pi.dev)
+cppc codex    -p openrouter -m autonomous # OpenAI Codex CLI
+```
+
+All harness commands share the same flags: `-p/--profile`, `-m/--mode`, `--model`, `--native`, and `--` passthrough. No harness config files are ever written — cppc wires profiles in per-launch (env vars for Claude Code and pi, inline `OPENCODE_CONFIG_CONTENT` for OpenCode, `-c` overrides for Codex).
+
+### Unified permission policies
+
+One policy vocabulary, translated per harness — callers (human or agent) don't need to know each CLI's flags:
+
+| Policy | Meaning | claude | codex | opencode | pi |
+|--------|---------|--------|-------|----------|-----|
+| `yolo` | fully autonomous | `--dangerously-skip-permissions` | `--dangerously-bypass-approvals-and-sandbox` | `--auto` | (always) |
+| `edit` | work, ask when risky | *(default)* | *(default)* | *(default)* | n/a — pi is always yolo |
+| `safe` | read-only / plan | `--plan` | `--sandbox read-only` | `--agent plan` | refused with clear error |
+
+The legacy names (`autonomous | default | plan`) still work everywhere.
+
+### Native launches
+
+`--native` (or profile `native` in `cppc run` targets) launches a harness with **its own** auth and config — no profile injection. Handy when your active profile is a cheap provider but you just want your Claude subscription for one session:
+
+```bash
+cppc claude --native            # your claude login, untouched
+cppc codex --native -m yolo     # codex with its native OpenAI auth
+```
+
+### `cppc run` — unified non-interactive verb
+
+One spawn contract across all harnesses (`--print` / `codex exec` / `opencode run` / `pi -p` are translated for you) — built for agentic workflows:
+
+```bash
+cppc run "explain this repo"                            # claude + active profile
+cppc run -H opencode -p minimax --policy safe "plan the refactor"
+cppc run -p native --policy yolo "fix the failing test"
+
+# Fan-out: the same task through several harness/model pairs, in parallel
+cppc run --on claude:openrouter:anthropic/claude-sonnet-5 \
+         --on codex:openrouter:openai/gpt-5.2 \
+         --json "review src/lib/config.ts for bugs"
+```
+
+Targets are `harness[:profile[:model]]` (`active` and `native` are special profile names). A single target streams straight through with its exit code; multiple targets run in parallel and report labeled results (or a JSON array with `--json`) — disagreement between models is signal.
+
+| Harness | Command | Profile compatibility | Mode notes |
+|---------|---------|----------------------|------------|
+| Claude Code | `cppc claude` | All profiles (Anthropic wire) | Full: default / autonomous / plan |
+| OpenCode | `cppc opencode` | All profiles (Anthropic + OpenAI wire via `wireApi`) | Native plan mode (`--agent plan`) |
+| pi | `cppc pi` | anthropic-api, minimax, deepseek, kimi, zhipu, openrouter (built-in providers) | Always autonomous — no plan mode |
+| Codex | `cppc codex` | openrouter only (Codex speaks only the OpenAI Responses API) | plan ≈ read-only sandbox |
+
+Profiles carry an optional `WIRE_API` field in `.cppc.env` (`anthropic` default, `openai` for e.g. Ollama) so harnesses that support both wire protocols pick the right one. Harnesses that can't work with a profile refuse with a clear error instead of launching something broken.
 
 ## Commands
 
 | Command | Description |
 |---------|-------------|
 | `cppc` | Interactive wizard (first-run setup or main menu) |
-| `cppc init` | Create `.cppc.env` with a starter profile |
+| `cppc init` | Create `.cppc.env` with a starter profile (global by default, `--project` for local) |
 | `cppc env` | Print `export` statements for the active profile |
 | `cppc status` | Show active profile, fallback chain, profile count |
 | `cppc switch <profile>` | Set the active profile |
@@ -75,6 +154,9 @@ Claude Code and the Agent SDK respect `ANTHROPIC_BASE_URL`, `ANTHROPIC_AUTH_TOKE
 | `cppc fallback reset` | Clear the fallback chain |
 | `cppc check [profile]` | Health-check a provider endpoint (`--all` for all) |
 | `cppc claude` | Launch a Claude terminal with profile env vars injected |
+| `cppc codex` / `cppc pi` / `cppc opencode` | Launch other agent harnesses with a profile applied |
+| `cppc run <prompt>` | Non-interactive run through one or more harnesses (`--on` fan-out) |
+| `cppc models` | List models available through an OpenRouter profile |
 | `cppc providers` | List built-in provider templates |
 | `cppc reset` | Remove `.cppc.env` |
 
@@ -264,7 +346,12 @@ try {
 
 ## Config
 
-Single flat file: `.cppc.env` in your project directory. Add it to `.gitignore` — it contains auth tokens.
+Single flat file, resolved **local first, then global**:
+
+1. `./.cppc.env` — project-scoped, wins when present (create with `cppc init --project`; add it to `.gitignore` — it contains auth tokens)
+2. `~/.cppc/.cppc.env` — the default home for your keys (override the directory with `CPPC_HOME`)
+
+Fresh setups save globally so your keys live in one place and work from any directory. The file is written with owner-only permissions (0600). `cppc status` shows which config is active; `cppc reset` removes the resolved one (local first, then global).
 
 ```env
 CPPC_ACTIVE=anthropic
@@ -279,7 +366,7 @@ CPPC__minimax__AUTH_TOKEN=mm-xxx
 CPPC__minimax__MODEL=MiniMax-M2.7
 ```
 
-Profiles are project-scoped. CPPC never touches `~/.claude/settings.json` or any global config.
+CPPC never touches `~/.claude/settings.json` or any harness's own config.
 
 ## License
 

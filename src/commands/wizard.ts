@@ -1,10 +1,13 @@
 import type { Command } from 'commander';
+import { unlinkSync } from 'node:fs';
 import { select, input, confirm } from '@inquirer/prompts';
-import { loadConfig, saveConfig, resolveConfigPath } from '../lib/config.js';
+import { loadConfig, saveConfig, resolveConfigPath, findConfigPath, globalConfigDir } from '../lib/config.js';
 import { getAllTemplates, getTemplate } from '../lib/providers.js';
 import { profileToExports } from '../lib/env-mapper.js';
+import { checkHealth, formatHealth } from '../lib/health.js';
+import { launchClaude, modeArgs } from '../lib/launch.js';
 import { mask } from '../lib/output.js';
-import type { Config, Profile } from '../types.js';
+import type { Config, Profile, ProviderTemplate } from '../types.js';
 
 const CYAN = '\x1b[36m';
 const GREEN = '\x1b[32m';
@@ -22,14 +25,6 @@ async function ask<T>(fn: () => Promise<T>): Promise<T | null> {
   }
 }
 
-interface ProviderChoice {
-  id: string;
-  name: string;
-  baseUrl: string;
-  model: string;
-  oauth: boolean;
-}
-
 function banner(): void {
   console.log(`
 ${CYAN}${BOLD}  ╔═══════════════════════════════════════════╗
@@ -39,7 +34,7 @@ ${CYAN}${BOLD}  ╔════════════════════�
 `);
 }
 
-async function selectProvider(): Promise<ProviderChoice | null> {
+async function selectProvider(): Promise<{ template: ProviderTemplate; model: string } | null> {
   const templates = getAllTemplates();
 
   const providerId = await ask(() => select({
@@ -60,54 +55,58 @@ async function selectProvider(): Promise<ProviderChoice | null> {
     model = m;
   }
 
-  return { id: providerId, name: template.name, baseUrl: template.baseUrl, model, oauth: !!template.oauth };
+  return { template, model };
 }
 
-async function askAuthToken(providerName: string): Promise<string | null> {
-  const token = await ask(() => input({
-    message: `${providerName} API key / auth token`,
-    validate: (val) => val.trim().length > 0 || 'Auth token is required',
-  }));
-  if (token === null) return null;
-  return token.trim();
+/** Prompt for the auth token (unless OAuth) and build the profile. Null on Esc. */
+async function buildProfile(template: ProviderTemplate, model: string): Promise<Profile | null> {
+  let authToken = '';
+  if (template.oauth) {
+    console.log(`\n${CYAN}  OAuth provider — no API key needed.${RESET}`);
+    console.log(`${DIM}  Make sure you're logged in: ${BOLD}claude login${RESET}\n`);
+  } else {
+    const token = await ask(() => input({
+      message: `${template.name} API key / auth token`,
+      validate: (val) => val.trim().length > 0 || 'Auth token is required',
+    }));
+    if (token === null) return null;
+    authToken = token.trim();
+  }
+
+  const profile: Profile = { name: template.id, baseUrl: template.baseUrl, authToken, model };
+  if (template.smallFastModel) profile.smallFastModel = template.smallFastModel;
+  if (template.wireApi) profile.wireApi = template.wireApi;
+  return profile;
 }
 
 async function firstRunSetup(): Promise<void> {
   banner();
-  console.log(`${YELLOW}  No .cppc.env found. Let's set up your first provider.${RESET}\n`);
+  console.log(`${YELLOW}  No credentials found (checked ./.cppc.env and ${globalConfigDir()}). Let's set up your first provider.${RESET}\n`);
 
-  const provider = await selectProvider();
-  if (!provider) { console.log(`\n${DIM}  Exited.${RESET}`); return; }
+  const selected = await selectProvider();
+  if (!selected) { console.log(`\n${DIM}  Exited.${RESET}`); return; }
 
-  let authToken = '';
-  if (provider.oauth) {
-    console.log(`\n${CYAN}  OAuth provider — no API key needed.${RESET}`);
-    console.log(`${DIM}  Make sure you're logged in: ${BOLD}claude login${RESET}\n`);
-  } else {
-    const t = await askAuthToken(provider.name);
-    if (t === null) { console.log(`\n${DIM}  Exited.${RESET}`); return; }
-    authToken = t;
-  }
+  const profile = await buildProfile(selected.template, selected.model);
+  if (!profile) { console.log(`\n${DIM}  Exited.${RESET}`); return; }
 
-  const profile: Profile = {
-    name: provider.id,
-    baseUrl: provider.baseUrl,
-    authToken,
-    model: provider.model,
-  };
-
-  const template = getTemplate(provider.id);
-  if (template?.smallFastModel) profile.smallFastModel = template.smallFastModel;
+  const scope = await ask(() => select({
+    message: 'Where should credentials live?',
+    choices: [
+      { name: `Global — ${globalConfigDir()} (recommended, works everywhere)`, value: 'global' as const },
+      { name: `This project — ${resolveConfigPath()}`, value: 'project' as const },
+    ],
+  }));
+  if (scope === null) { console.log(`\n${DIM}  Exited.${RESET}`); return; }
 
   const config: Config = {
-    active: provider.id,
+    active: profile.name,
     fallback: [],
-    profiles: new Map([[provider.id, profile]]),
+    profiles: new Map([[profile.name, profile]]),
   };
 
-  saveConfig(config);
-  console.log(`${GREEN}  ✓ Profile '${provider.id}' created and set as active.${RESET}`);
-  console.log(`${DIM}  Config saved to ${resolveConfigPath()}${RESET}\n`);
+  const savedPath = saveConfig(config, scope === 'project' ? process.cwd() : undefined);
+  console.log(`${GREEN}  ✓ Profile '${profile.name}' created and set as active.${RESET}`);
+  console.log(`${DIM}  Config saved to ${savedPath} (owner-only permissions)${RESET}\n`);
 
   const addMore = await ask(() => confirm({ message: 'Add another provider (for fallback)?', default: false }));
   if (addMore) await addProfileFlow(config);
@@ -117,37 +116,20 @@ async function firstRunSetup(): Promise<void> {
 
 async function addProfileFlow(config: Config): Promise<void> {
   while (true) {
-    const provider = await selectProvider();
-    if (!provider) return; // Esc → back
+    const selected = await selectProvider();
+    if (!selected) return; // Esc → back
 
-    if (config.profiles.has(provider.id)) {
-      console.log(`${YELLOW}  Profile '${provider.id}' already exists, skipping.${RESET}`);
+    if (config.profiles.has(selected.template.id)) {
+      console.log(`${YELLOW}  Profile '${selected.template.id}' already exists, skipping.${RESET}`);
     } else {
-      let authToken = '';
-      if (provider.oauth) {
-        console.log(`\n${CYAN}  OAuth provider — no API key needed.${RESET}`);
-        console.log(`${DIM}  Make sure you're logged in: ${BOLD}claude login${RESET}\n`);
-      } else {
-        const t = await askAuthToken(provider.name);
-        if (t === null) return; // Esc → back
-        authToken = t;
-      }
+      const profile = await buildProfile(selected.template, selected.model);
+      if (!profile) return; // Esc → back
 
-      const profile: Profile = {
-        name: provider.id,
-        baseUrl: provider.baseUrl,
-        authToken,
-        model: provider.model,
-      };
-
-      const template = getTemplate(provider.id);
-      if (template?.smallFastModel) profile.smallFastModel = template.smallFastModel;
-
-      config.profiles.set(provider.id, profile);
-      config.fallback.push(provider.id);
+      config.profiles.set(profile.name, profile);
+      config.fallback.push(profile.name);
       saveConfig(config);
 
-      console.log(`${GREEN}  ✓ Profile '${provider.id}' added to fallback chain.${RESET}`);
+      console.log(`${GREEN}  ✓ Profile '${profile.name}' added to fallback chain.${RESET}`);
     }
 
     const more = await ask(() => confirm({ message: 'Add another provider?', default: false }));
@@ -171,8 +153,6 @@ function showNextSteps(config: Config): void {
   if (profileNames.length > 1) {
     console.log(`  ${DIM}  cppc claude -p ${profileNames[1]} -m autonomous${RESET}`);
   }
-  console.log(`\n  ${BOLD}Option 3:${RESET} Apply to project (auto-activates with 'claude')`);
-  console.log(`  ${DIM}  cppc apply${RESET}`);
   console.log('');
 }
 
@@ -195,7 +175,6 @@ async function mainMenu(): Promise<void> {
       { name: 'Add a provider profile',         value: 'add' as const },
       { name: 'Activate next fallback',         value: 'fallback' as const },
       { name: 'Show env exports',               value: 'env' as const },
-      { name: 'Apply to project (.claude/settings.json)', value: 'apply' as const },
       { name: 'Show all profiles',              value: 'list' as const },
       { name: 'Remove a profile',               value: 'remove' as const },
       { name: 'Health check providers',          value: 'check' as const },
@@ -228,16 +207,8 @@ async function mainMenu(): Promise<void> {
       }));
       if (mode === null) break;
 
-      const { spawn } = await import('node:child_process');
-      const { profileToJson } = await import('../lib/env-mapper.js');
-      const p = config.profiles.get(profile)!;
-      const envOverrides = profileToJson(p);
-      const args: string[] = [];
-      if (mode === 'autonomous') args.push('--dangerously-skip-permissions');
-      if (mode === 'plan') args.push('--plan');
       console.log(`\n${GREEN}  Launching claude with '${profile}'...${RESET}\n`);
-      const child = spawn('claude', args, { env: { ...process.env, ...envOverrides }, stdio: 'inherit', shell: true });
-      child.on('close', (code) => { process.exitCode = code ?? 0; });
+      launchClaude(config.profiles.get(profile)!, modeArgs(mode));
       return;
     }
     case 'switch': {
@@ -274,10 +245,6 @@ async function mainMenu(): Promise<void> {
       console.log(`\n${profileToExports(p)}\n`);
       break;
     }
-    case 'apply': {
-      console.log(`${DIM}  Run: cppc apply${RESET}`);
-      break;
-    }
     case 'list': {
       console.log('');
       for (const [name, p] of config.profiles) {
@@ -308,24 +275,19 @@ async function mainMenu(): Promise<void> {
       break;
     }
     case 'check': {
-      const { checkHealth } = await import('../lib/health.js');
       console.log('');
       for (const p of config.profiles.values()) {
-        const result = await checkHealth(p, 5000);
-        const icon = result.status === 'ok' ? `${GREEN}✓${RESET}` : `\x1b[31m✗${RESET}`;
-        const latency = result.latencyMs ? ` ${DIM}(${result.latencyMs}ms)${RESET}` : '';
-        const errMsg = result.error ? ` ${DIM}— ${result.error}${RESET}` : '';
-        console.log(`  ${icon} ${p.name}: ${result.status.toUpperCase()}${latency}${errMsg}`);
+        console.log(`  ${formatHealth(await checkHealth(p, 5000))}`);
       }
       console.log('');
       break;
     }
     case 'reset': {
-      const sure = await ask(() => confirm({ message: 'Remove .cppc.env? This cannot be undone.', default: false }));
+      const path = findConfigPath()!;
+      const sure = await ask(() => confirm({ message: `Remove ${path}? This cannot be undone.`, default: false }));
       if (!sure) break;
-      const { unlinkSync } = await import('node:fs');
-      unlinkSync(resolveConfigPath());
-      console.log(`${GREEN}  ✓ Removed .cppc.env.${RESET}`);
+      unlinkSync(path);
+      console.log(`${GREEN}  ✓ Removed ${path}.${RESET}`);
       return;
     }
     case 'exit':
@@ -341,8 +303,24 @@ export function registerWizard(program: Command): void {
     const config = loadConfig();
     if (!config) {
       await firstRunSetup();
-    } else {
-      await mainMenu();
+      return;
     }
+
+    // Credentials exist — say where they came from and ask before using them
+    const path = findConfigPath()!;
+    const scope = path.startsWith(globalConfigDir()) ? 'global' : 'project';
+    console.log(`\n${CYAN}  Credentials found (${scope}): ${DIM}${path}${RESET}`);
+    console.log(`${DIM}  Profiles: ${[...config.profiles.keys()].join(', ')} · active: ${config.active}${RESET}\n`);
+
+    const useThem = await ask(() => confirm({ message: 'Use these credentials?', default: true }));
+    if (!useThem) {
+      console.log(`\n${DIM}  Not using ${path}.`);
+      console.log(`  Start fresh here:   cppc init --project ...`);
+      console.log(`  Remove them:        cppc reset`);
+      console.log(`  Native harness run: cppc claude --native${RESET}\n`);
+      return;
+    }
+
+    await mainMenu();
   });
 }

@@ -1,7 +1,7 @@
 import type { Command } from 'commander';
 import { loadConfig } from '../lib/config.js';
-import { checkHealth } from '../lib/health.js';
-import { out, err, isJsonMode } from '../lib/output.js';
+import { checkHealth, formatHealth } from '../lib/health.js';
+import { out, err } from '../lib/output.js';
 
 export function registerCheck(program: Command): void {
   program
@@ -38,15 +38,6 @@ Examples:
         profiles.map(p => checkHealth(p!, timeout))
       );
 
-      if (isJsonMode()) {
-        out('', results);
-      } else {
-        for (const r of results) {
-          const icon = r.status === 'ok' ? '✓' : '✗';
-          const latency = r.latencyMs !== undefined ? ` (${r.latencyMs}ms)` : '';
-          const error = r.error ? ` — ${r.error}` : '';
-          console.log(`${icon} ${r.name}: ${r.status.toUpperCase()}${latency}${error}`);
-        }
-      }
+      out(results.map(formatHealth).join('\n'), results);
     });
 }

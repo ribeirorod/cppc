@@ -31,3 +31,10 @@ export async function checkHealth(profile: Profile, timeoutMs = 5000): Promise<H
     return { name: profile.name, status: 'fail', latencyMs, error: message };
   }
 }
+
+export function formatHealth(r: HealthResult): string {
+  const icon = r.status === 'ok' ? '✓' : '✗';
+  const latency = r.latencyMs !== undefined ? ` (${r.latencyMs}ms)` : '';
+  const error = r.error ? ` — ${r.error}` : '';
+  return `${icon} ${r.name}: ${r.status.toUpperCase()}${latency}${error}`;
+}

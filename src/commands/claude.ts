@@ -1,7 +1,7 @@
 import type { Command } from 'commander';
-import { spawn } from 'node:child_process';
 import { loadConfig } from '../lib/config.js';
-import { profileToJson } from '../lib/env-mapper.js';
+import { getHarness, normalizeMode } from '../lib/harnesses.js';
+import { launchClaude, launchNative, modeArgs } from '../lib/launch.js';
 import { out, err } from '../lib/output.js';
 
 export function registerClaude(program: Command): void {
@@ -9,10 +9,11 @@ export function registerClaude(program: Command): void {
     .command('claude')
     .description('Launch a Claude Code terminal with a specific profile')
     .option('-p, --profile <name>', 'Profile to use (defaults to active)')
-    .option('-m, --mode <mode>', 'Permission mode: autonomous | default | plan (default: default)')
+    .option('-m, --mode <mode>', 'Permission policy: yolo | edit | safe (aka autonomous | default | plan)')
     .option('--print', 'Use claude --print (non-interactive, pipe-friendly)')
     .option('--resume', 'Resume last conversation')
     .option('--model <model>', 'Override the model for this session')
+    .option('--native', "Use claude's own login/env — no profile injection")
     .allowUnknownOption(true)
     .addHelpText('after', `
 Examples:
@@ -23,6 +24,7 @@ Examples:
   cppc claude -p anthropic --resume            # Resume last conversation on Anthropic
   cppc claude -p minimax --print "explain X"   # Non-interactive with minimax
   cppc claude -p minimax -- --verbose          # Pass extra flags to claude
+  cppc claude -p openrouter --model deepseek/deepseek-chat   # Any OpenRouter model
 
 Modes:
   default      Normal interactive mode
@@ -30,6 +32,23 @@ Modes:
   plan         Equivalent to --plan
     `)
     .action((opts, cmd) => {
+      const mode = normalizeMode(opts.mode);
+      const harness = getHarness('claude')!;
+
+      if (opts.native) {
+        const args = [
+          ...(opts.model ? harness.nativeModelArgs(opts.model) : []),
+          ...modeArgs(mode),
+          ...(opts.print ? ['--print'] : []),
+          ...(opts.resume ? ['--resume'] : []),
+          ...(cmd.args || []),
+        ];
+        out('Launching claude (native auth)...', { native: true, mode: opts.mode || 'edit' });
+        const child = launchNative(harness, args);
+        child.on('error', (e) => err(`Failed to launch claude: ${e.message}. Is Claude Code installed?`));
+        return;
+      }
+
       const config = loadConfig();
       if (!config) {
         err('No .cppc.env found. Run: cppc init');
@@ -43,58 +62,22 @@ Modes:
         return;
       }
 
-      // Build env vars from profile
-      const envOverrides = profileToJson(profile);
+      const claudeArgs = [
+        ...modeArgs(mode),
+        ...(opts.print ? ['--print'] : []),
+        ...(opts.resume ? ['--resume'] : []),
+        ...(cmd.args || []), // Pass through any remaining args after --
+      ];
 
-      // Override model if specified
-      if (opts.model) {
-        envOverrides['ANTHROPIC_MODEL'] = opts.model;
-      }
-
-      // Build claude args
-      const claudeArgs: string[] = [];
-
-      // Permission mode
-      if (opts.mode === 'autonomous') {
-        claudeArgs.push('--dangerously-skip-permissions');
-      } else if (opts.mode === 'plan') {
-        claudeArgs.push('--plan');
-      }
-
-      if (opts.print) {
-        claudeArgs.push('--print');
-      }
-
-      if (opts.resume) {
-        claudeArgs.push('--resume');
-      }
-
-      // Pass through any remaining args after --
-      const passthrough = cmd.args || [];
-      claudeArgs.push(...passthrough);
-
-      // Merge env: current process env + profile overrides
-      const childEnv = { ...process.env, ...envOverrides };
-
-      out(`Launching claude with profile '${profileName}'${opts.mode === 'autonomous' ? ' (autonomous)' : ''}...`, {
+      out(`Launching claude with profile '${profileName}'${mode === 'autonomous' ? ' (autonomous)' : ''}...`, {
         profile: profileName,
-        mode: opts.mode || 'default',
-        env_overrides: Object.keys(envOverrides),
+        mode: opts.mode || 'edit',
+        env_overrides: Object.keys(harness.buildEnv(profile, opts.model)),
       });
 
-      // Spawn claude with inherited stdio for full interactivity
-      const child = spawn('claude', claudeArgs, {
-        env: childEnv,
-        stdio: 'inherit',
-        shell: true,
-      });
-
+      const child = launchClaude(profile, claudeArgs, opts.model);
       child.on('error', (e) => {
         err(`Failed to launch claude: ${e.message}. Is Claude Code installed?`);
-      });
-
-      child.on('close', (code) => {
-        process.exitCode = code ?? 0;
       });
     });
 }
