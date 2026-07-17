@@ -34,7 +34,8 @@ jobs:
         run: |
           PKG="@ribeirorod/cppc-cli"
           VER="${{ steps.version.outputs.value }}"
-          if npm view "$PKG@$VER" version 2>/dev/null; then
+          PUBLISHED=$(npm view "${PKG}@${VER}" version >/dev/null 2>&1 && echo true || echo false)
+          if [ "$PUBLISHED" = "true" ]; then
             echo "published=true" >> "$GITHUB_OUTPUT"
             echo "v$VER already on npm — nothing to publish."
           else
@@ -66,6 +67,11 @@ jobs:
 
       - name: Publish to npm
         if: steps.check.outputs.published == 'false'
-        run: npm publish --provenance --access public
+        run: |
+          echo "Publishing v${{ steps.version.outputs.value }} to npm..."
+          npm publish --provenance --access public 2>&1 || {
+            echo "Provenance publish failed — retrying without provenance..."
+            npm publish --access public 2>&1
+          }
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
