@@ -1,6 +1,8 @@
 # CPPC — Claude Profiled Provider CLI
 
-Manage multiple Anthropic-compatible providers for Claude Code and the Agent SDK. Switch profiles, set fallback chains, and launch profiled terminals — all project-scoped, never global.
+Provider- and harness-independent profiles for coding agents. Define a provider once, then launch **any** agent CLI against it — Claude Code, OpenAI Codex, OpenCode, or pi — switching providers, models, and harnesses with a flag. Set fallback chains, health-check endpoints, and run prompts non-interactively across several harnesses at once.
+
+One key, one profile, any model, any harness.
 
 ## Install
 
@@ -36,11 +38,16 @@ claude "hello"
 
 ## Why
 
-Claude Code and the Agent SDK respect `ANTHROPIC_BASE_URL`, `ANTHROPIC_AUTH_TOKEN`, and `ANTHROPIC_MODEL` environment variables. Many providers expose Anthropic-compatible APIs — MiniMax, DeepSeek, Kimi, Qwen, Z.AI/GLM, OpenRouter, Ollama. CPPC manages named profiles for these and outputs shell exports. No global config mutation, no MCP overhead.
+Coding-agent CLIs read provider settings from env vars, flags, or config files — each in its own way. Claude Code respects `ANTHROPIC_BASE_URL` / `ANTHROPIC_AUTH_TOKEN` / `ANTHROPIC_MODEL`; Codex wants a `model_providers` block; OpenCode wants a provider in `opencode.json`; pi wants its own env vars. CPPC keeps **one** set of named profiles and translates each into whatever the target harness needs — per launch, no config files written, no global state mutated.
+
+The result is a clean, scriptable seam between *who serves the tokens* (provider), *which model* (flag), *which agent drives* (harness), and *how much freedom it has* (policy) — each swappable independently. That is exactly the surface an orchestrating agent needs to spin up sub-agents on the right model, at the right price, under the right guardrails.
 
 **Use cases:**
+- **Provider independence** — one profile catalog for MiniMax, DeepSeek, Kimi, Qwen, Z.AI/GLM, OpenRouter, Ollama, and Anthropic
+- **Harness independence** — the same profile launches Claude Code, Codex, OpenCode, or pi (`cppc <harness> -p <profile>`)
 - **Fallback resilience** — quota hit or outage? `cppc fallback activate && eval $(cppc env)`
-- **Cost optimization** — run complex tasks on Anthropic, simple ones on cheaper providers
+- **Cost arbitrage** — cheap models for grunt work, frontier models for judgment; `cppc models` shows live per-token pricing
+- **Cross-model verification** — `cppc run` the same task through several harness/model pairs in parallel; disagreement is signal
 - **Parallel terminals** — different providers in different terminals simultaneously
 
 ## Built-in Providers
@@ -159,7 +166,7 @@ Profiles carry an optional `WIRE_API` field in `.cppc.env` (`anthropic` default,
 | `cppc run <prompt>` | Non-interactive run through one or more harnesses (`--on` fan-out) |
 | `cppc models` | List models available through an OpenRouter profile |
 | `cppc providers` | List built-in provider templates |
-| `cppc reset` | Remove `.cppc.env` |
+| `cppc reset` | Remove the resolved `.cppc.env` (local first, then global) |
 
 Every command supports `--help` with examples and `--json` for machine-readable output.
 
